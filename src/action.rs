@@ -1,4 +1,4 @@
-use crate::ui::screens::Screen;
+use crate::ui::{gauge, screens::Screen};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
@@ -16,7 +16,8 @@ pub enum Action {
     UpPressed,
     DownPressed,
     Exit,
-
+    
+    UpdateLineGauge(gauge::GaugeId, f32),
     InitializeSoloSpeedGame,
 
     None

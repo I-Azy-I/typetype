@@ -1,5 +1,6 @@
 use std::io;
 
+use action::Action;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use dispatcher::Dispatcher;
 use ratatui::{
@@ -19,7 +20,9 @@ mod stores;
 mod flux;
 mod dispatcher;
 mod user_input;
+mod text_generator;
 
+use tokio::sync::mpsc::UnboundedSender;
 use user_input::UserInput;
 
 #[tokio::main]
@@ -28,11 +31,19 @@ async fn main() {
     let (mut dispatcher, dispatcher_tx) = Dispatcher::new();
     let (mut app, app_tx) = App::new(dispatcher_tx.clone());
     dispatcher.add_store(app_tx);
-    let user_input = UserInput::new(dispatcher_tx);
+    let user_input = UserInput::new(dispatcher_tx.clone());
     tokio::select! {
+        //_ = stress_test(dispatcher_tx.clone()) => {},
         _ = dispatcher.dispatch() => {}
         _ = app.run() => {}
         _ = user_input.main_loop() => {}
     }
     ratatui::restore();
+}
+
+async fn stress_test(dispatcher_tx: UnboundedSender<Action>){
+    loop {
+        dispatcher_tx.send(Action::KeyPressed(' ')).unwrap();
+        tokio::task::yield_now().await;
+    }
 }

@@ -1,15 +1,17 @@
 use std::{clone, fmt::Debug};
 
-use first_menu::FirstMenuComponent;
+use menus::first_menu::FirstMenuComponent;
 use ratatui::widgets::Widget;
-use solo_games_menu::SoloGamesMenuComponent;
-use solo_speed_game::ScreenSoloSpeedGameComponent;
+use settings::setting_screen::SettingsScreenComponent;
+use menus::solo_games_menu::SoloGamesMenuComponent;
+use games::solo_speed_game::ScreenSoloSpeedGameComponent;
 use tokio::sync::mpsc::UnboundedSender;
 
 
-mod first_menu;
-mod solo_games_menu;
-mod solo_speed_game;
+mod games;
+mod menus;
+mod settings;
+
 use crate::{action::Action, flux::SendAction, stores::Store};
 
 const STARTING_SCREEN: Screen = Screen::FirstMenu;
@@ -20,6 +22,7 @@ pub enum Screen {
     FirstMenu,
     SoloGamesMenu,
     SoloSpeedGame,
+    Settings
 }
 impl Screen {
     fn previous(self) -> Option<Screen>  {
@@ -27,7 +30,8 @@ impl Screen {
             Screen::FirstMenu => None,
             Screen::SoloGamesMenu => Some(Screen::FirstMenu),
             Screen::SoloSpeedGame => Some(Screen::FirstMenu),
-            }
+            Screen::Settings => Some(Screen::FirstMenu),
+                    }
     }
 }
 
@@ -40,6 +44,7 @@ pub struct ScreenRouterComponent {
     first_menu: FirstMenuComponent,
     solo_game_menu: SoloGamesMenuComponent,
     solo_speed_game: ScreenSoloSpeedGameComponent,
+    settings_screen: SettingsScreenComponent,
 
 }
 impl ScreenRouterComponent {
@@ -47,7 +52,8 @@ impl ScreenRouterComponent {
         let first_menu = FirstMenuComponent::new(dispatcher_tx.clone());
         let solo_game_menu = SoloGamesMenuComponent::new(dispatcher_tx.clone());
         let solo_speed_game = ScreenSoloSpeedGameComponent::new(dispatcher_tx.clone());
-        ScreenRouterComponent { dispatcher_tx, current_sceen: Screen::default(), first_menu, solo_game_menu, solo_speed_game }
+        let settings_screen = SettingsScreenComponent{};
+        ScreenRouterComponent { dispatcher_tx, current_sceen: Screen::default(), first_menu, solo_game_menu, solo_speed_game, settings_screen }
     }
 
     fn close_current(&self){
@@ -70,6 +76,7 @@ impl ScreenRouterComponent {
         self.first_menu.update(action);
         self.solo_game_menu.update(action);
         self.solo_speed_game.update(action);
+        self.settings_screen.update(action);
     }
 
 }
@@ -127,6 +134,7 @@ impl Widget for &mut ScreenRouterComponent{
             Screen::FirstMenu => self.first_menu.render(area, buf),
             Screen::SoloGamesMenu => self.solo_game_menu.render(area, buf),
             Screen::SoloSpeedGame => self.solo_speed_game.render(area, buf),
+            Screen::Settings => self.settings_screen.render(area, buf),
         }
     }
 }

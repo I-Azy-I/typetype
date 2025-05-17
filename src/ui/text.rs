@@ -1,11 +1,12 @@
-use std::iter;
+use std::{iter, slice::{self, Iter}};
 
-use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
+use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Stylize}, symbols::line, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
+use serde_json::map::IntoIter;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, app::App, flux::SendAction, stores::Store};
+use crate::{action::Action, flux::{self, SendAction}, stores::Store, text_generator::{get_text, TextGenerator, TextGeneratorIntoIter}};
 
-use super::screens::{Screen, ScreenMember};
+use super::{gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
 
 const LOREM_LIPSUM: &str = "Lorem ipsum dolor  sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut";
 
@@ -40,6 +41,9 @@ impl TypeChar  {
         *self
     }
     fn guard() -> TypeChar {
+        TypeChar::space()
+    }
+    fn space() -> TypeChar {
         TypeChar { char: ' ', state: CharacterState::NotTyped }
     }
 }
@@ -77,74 +81,115 @@ impl Widget for  TypeLine {
 }
 
 
+
+
+
+
+
+#[derive(Debug)]
+enum KindLength<I: Iterator<Item = String>> {
+    Unlimited(I),
+    Finished
+}
+
+#[derive(Debug)]
+enum TextWidgetState {
+    InProgress,
+    DoneWithMistakes,
+    Done
+}
+
 #[derive(Debug)]
 pub struct TextWidget {
+    kind_length: KindLength<TextGeneratorIntoIter>,
 
     current_width: u16,
     lines: Vec<TypeLine>,
 
     pos_in_line: usize,
     n_line: usize,
-    total_position: usize
-}
+    total_position: usize,
+
+    total_size: usize,
+    mistakes_counter: usize,
+    state: TextWidgetState
+} 
 
 
 impl TextWidget  {
-    fn new(text: String, width_max: u16) -> Self {
+    fn new(text: String) -> Self {
         let typechar_text: Vec<TypeChar> = text
             .chars()
             .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
             .collect();
-        let lines = Self::get_lines(typechar_text, width_max);
-        TextWidget { current_width: width_max, lines, pos_in_line: 0, n_line: 0, total_position: 0 }
-
+        let total_size = typechar_text.len();
+        let lines = Self::get_lines(typechar_text, 0);
+        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Finished }
     }
 
-    fn back_cursor(&mut self){
-        if let Some(pos_in_line) = self.pos_in_line.checked_sub(1) {
-           self.pos_in_line = pos_in_line;
-           self.total_position -= 1; 
-        }else {
-            if let Some(n_line) = self.n_line.checked_sub(1) {
-                self.n_line = n_line;
-                self.pos_in_line = self.lines[n_line].line.len() - 1;
-                self.total_position -= 1; 
-            }
+    fn from_language(name: &str) -> Self{
+        let first_batch = 500;
+        let new_chars = TextGenerator::from_language(name, None)
+                    .into_iter()
+                    .take(first_batch)
+                    .flat_map(|text| {
+                        std::iter::once(TypeChar::space()) 
+                            .chain(text.chars().map(|c| TypeChar {
+                                char: c,
+                                state: CharacterState::NotTyped,
+                            }))
+                            .collect::<Vec<_>>() 
+                            .into_iter()
+                    }).skip(1);
+        let text_generator_into_iter = TextGenerator::from_language(name, None).into_iter().skip_n(first_batch);
+        let lines =  Self::get_lines_from_iterator(
+                    new_chars,
+                    100,
+                );
+        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size: 0, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Unlimited(text_generator_into_iter) }
+    } 
+
+    fn from_text(name: &str) -> Self {
+        let typechar_text: Vec<TypeChar> = get_text(name).unwrap()
+            .chars()
+            .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
+            .collect();
+        let total_size = typechar_text.len();
+        let lines = Self::get_lines(typechar_text, 100);
+        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Finished }
+    }
+
+    fn genrate_new_batch(&mut self, batch_size: u16, width_max: u16) {
+        match &mut self.kind_length {
+            KindLength::Unlimited(text_generator_into_iter) => {
+                let lines = std::mem::take(&mut self.lines);
+                let existing_chars = lines.into_iter()
+                    .flat_map(|tlist| tlist.line);
+
+            
+                let new_chars = text_generator_into_iter
+                    .take(batch_size as usize)
+                    .flat_map(|text| {
+                        std::iter::once(TypeChar::space()) 
+                            .chain(text.chars().map(|c| TypeChar {
+                                char: c,
+                                state: CharacterState::NotTyped,
+                            }))
+                            .collect::<Vec<_>>() 
+                            .into_iter()
+                    });
+
+                
+                self.lines =  Self::get_lines_from_iterator(
+                    existing_chars.chain(new_chars),
+                    width_max,
+                );
+
+            },
+            KindLength::Finished => panic!("Impossible to generate new text"),
         }
     }
 
-    fn advance_cursor(&mut self){
-        if self.pos_in_line + 1 < self.lines[self.n_line].line.len(){
-            self.pos_in_line += 1;
-            self.total_position += 1;
-        } else {
-            if self.n_line + 1 < self.lines.len() {
-                self.pos_in_line = 0;
-                self.n_line += 1;
-                self.total_position +=1;
-            }
-        }
-    }
-
-    fn is_current_char(&self, key: char) -> bool {
-        self.lines[self.n_line].line[self.pos_in_line].char == key
-    }
-   
-    fn key_pressed(&mut self, key: char){
-        if self.is_current_char(key){
-            self.make_typed();
-        }else{
-            self.make_incorrect();
-        }
-        self.advance_cursor();
-        self.make_selected();
-
-    }
-    fn backspace(&mut self){
-        self.make_not_typed();
-        self.back_cursor();
-        self.make_selected();
-    }
     fn make_incorrect(&mut self){
          self.lines[self.n_line].line[self.pos_in_line].incorrect();
     }
@@ -159,6 +204,21 @@ impl TextWidget  {
     fn make_selected(&mut self){
          self.lines[self.n_line].line[self.pos_in_line].selected();
     }
+
+    fn is_current_char(&self, key: char) -> bool {
+        self.lines[self.n_line].line[self.pos_in_line].char == key
+    }
+    
+    fn cursor_char(&self) -> TypeChar {
+        self.lines[self.n_line].line[self.pos_in_line]
+    }
+    fn cursor_state(&self) -> CharacterState {
+        self.cursor_char().state
+    }
+    fn cursor_incorrect(&self) -> bool {
+        matches!(self.cursor_state(), CharacterState::Incorrect)
+    }
+
     fn get_lines(typechar_text: Vec<TypeChar>, width_max: u16) -> Vec<TypeLine> {
         Self::get_lines_from_iterator(typechar_text.into_iter(), width_max)
     }
@@ -222,6 +282,7 @@ impl TextWidget  {
         self.pos_in_line = self.total_position - acc;
         // println!(" newpos: {}", self.pos_in_line);
    }
+
     fn reformat(&mut self, new_max_width: u16){
         let lines = std::mem::take(&mut self.lines);
         let typechar_text_iter = lines.into_iter().flat_map(|tlist|tlist.line);
@@ -229,12 +290,17 @@ impl TextWidget  {
         self.correct_position();
         self.current_width = new_max_width;
     }
+
+    
+
 }
 
 impl Default for TextWidget {
     fn default() -> Self {
-        Self::new( bee_script(), 80)
-        // Self::new( LOREM_LIPSUM.to_string(), 80)
+        // Self::from_language("french_1k.json")
+        Self::from_text("lotr.txt")
+        //Self::new( bee_script())
+        //Self::new( LOREM_LIPSUM.to_string(), 80)
     }
 }
 
@@ -245,21 +311,23 @@ pub enum SettingsText {
 }
 
 impl TextWidget {
-    fn render_n_lines(&self, area: Rect, buf: &mut Buffer, n: usize){
+    fn render_n_lines(&mut self, area: Rect, buf: &mut Buffer, n: usize){
         let n = std::cmp::min(n, area.height as usize);
-        if self.lines.is_empty() {
-        return;
-        }
+        if self.lines.is_empty() { return; }
         let start_idx = if self.n_line == 0 || self.n_line >= self.lines.len() {
             0
         } else {
-            self.n_line - n / 2
+            self.n_line.checked_sub(n / 2).unwrap_or(0)
         };
-
+        if matches!(self.kind_length, KindLength::Unlimited(_)) {
+            if self.n_line + n/2 >= self.lines.len() {
+                self.genrate_new_batch(area.width * 20, area.width);
+            }
+        }
         let display_lines = self.lines
             .iter()
             .skip(start_idx)
-            .take(n);
+            .take(n); // TODO: check if access in o(1)
            
         let y_first_line = area.y + (area.height - n as u16) / 2;
         for (i,line ) in display_lines.enumerate(){
@@ -273,7 +341,7 @@ impl StatefulWidget for &mut TextWidget {
     type State = SettingsText;
     fn render(self, area: Rect, buf: &mut Buffer, settings: &mut Self::State) {
         if area.width != self.current_width {self.reformat(area.width);}
-        self.render_n_lines(area, buf, 4);
+        self.render_n_lines(area, buf, 5);
         // for (i,line ) in self.lines[0..std::cmp::min(self.lines.len(), area.height as usize)].iter().enumerate(){
         //     let new_area = Rect::new(area.x, area.y + i as u16, area.width, 1);
         //     line.clone().render(new_area, buf);
@@ -289,20 +357,136 @@ pub struct TextWidgetComponent {
     is_active: bool,
     dispatcher_tx: UnboundedSender<Action>,
     screen: Screen,
-    pub widget: TextWidget
+    pub widget: TextWidget,
+    linked_progress_bars: Vec<gauge::GaugeId>,
 
 }
 impl TextWidgetComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, screen: Screen) -> Self {
-        TextWidgetComponent { screen, dispatcher_tx, widget: TextWidget::default(), is_active: true }
+        TextWidgetComponent { screen, dispatcher_tx, widget: TextWidget::default(), is_active: true, linked_progress_bars: Vec::new() }
     }
+
+    pub fn link_progress_bars(&mut self, id: GaugeId){
+        self.linked_progress_bars.push(id);
+    }
+
+    pub fn current_ratio(&self) -> f32 {
+    
+        if self.widget.total_size == 0 || self.is_done() {1.0} else {self.widget.total_position as f32 / self.widget.total_size as f32}
+        
+    }
+
+    pub fn is_done(&self) -> bool {
+        match self.widget.state {
+            TextWidgetState::InProgress => false,
+            TextWidgetState::Done | TextWidgetState::DoneWithMistakes => true,
+        }
+    }
+    pub fn is_done_correctly(&self) -> bool {
+        match self.widget.state {
+            TextWidgetState::InProgress | TextWidgetState::DoneWithMistakes => false,
+            TextWidgetState::Done  => true,
+        }
+    }
+
+    fn update_linked_gauges(&self) {
+        if self.linked_progress_bars.is_empty() {return};
+        let ratio = self.current_ratio();
+        for  progress_bar in self.linked_progress_bars.iter() {
+            self.send(Action::UpdateLineGauge(*progress_bar, ratio)).unwrap()
+        }
+    }
+
+    fn back_cursor(&mut self){
+        match self.widget.state {
+            TextWidgetState::InProgress => {
+                if let Some(pos_in_line) = self.widget.pos_in_line.checked_sub(1) {
+                    self.widget.pos_in_line = pos_in_line;
+                    self.widget.total_position -= 1; 
+                }else {
+                    if let Some(n_line) = self.widget.n_line.checked_sub(1) {
+                        self.widget.n_line = n_line;
+                        self.widget.pos_in_line = self.widget.lines[n_line].line.len() - 1;
+                        self.widget.total_position -= 1; 
+                    }
+                }
+            },
+            TextWidgetState::DoneWithMistakes => {},
+            TextWidgetState::Done => {},
+        }
+        
+        
+    }
+
+    fn advance_cursor(&mut self) -> bool{
+        if self.widget.pos_in_line + 1 < self.widget.lines[self.widget.n_line].line.len(){
+            self.widget.pos_in_line += 1;
+            self.widget.total_position += 1;
+            true
+        } else {
+            if self.widget.n_line + 1 < self.widget.lines.len() {
+                self.widget.pos_in_line = 0;
+                self.widget.n_line += 1;
+                self.widget.total_position +=1;
+                true
+            } else {
+                false
+            }
+        }
+
+    }
+
+    fn key_pressed(&mut self, key: char){
+        match self.widget.state {
+            TextWidgetState::InProgress => {
+                if self.widget.is_current_char(key){
+                    self.widget.make_typed();
+                } else {
+                    self.widget.mistakes_counter += 1;
+                    self.widget.make_incorrect();
+                };       
+                if self.advance_cursor() {
+                    self.widget.make_selected();
+                } else if matches!(self.widget.kind_length, KindLength::Finished){
+                    self.widget.state = if self.widget.mistakes_counter > 0  { TextWidgetState::DoneWithMistakes } else { TextWidgetState::Done };
+                }
+            },
+            TextWidgetState::DoneWithMistakes => {
+                if self.widget.cursor_incorrect() {self.widget.mistakes_counter += 1;}
+                if self.widget.is_current_char(key){
+                    self.widget.make_typed();
+                } else {
+                    self.widget.mistakes_counter += 1;
+                    self.widget.make_incorrect();
+                };
+                self.widget.state = if self.widget.mistakes_counter > 0 { TextWidgetState::DoneWithMistakes } else { TextWidgetState::Done };
+            },
+            TextWidgetState::Done => {},
+        }
+        
+
+    }
+    fn backspace(&mut self){
+        self.widget.make_not_typed();
+        self.back_cursor();
+        if self.widget.cursor_incorrect() {
+            self.widget.mistakes_counter -= 1}
+        self.widget.make_selected();
+         if !matches!(self.widget.state, TextWidgetState::InProgress) { self.widget.state = TextWidgetState::InProgress };
+
+    }
+    
+    
+
 }
+
+
 
 impl Store for TextWidgetComponent {
     fn update(&mut self, action: Action,  ){
         match action {
-            Action::KeyPressed(key) if self.is_active => self.widget.key_pressed(key),
-            Action::BackspacePressed if self.is_active => self.widget.backspace(),
+            Action::KeyPressed(key) if self.is_active => self.key_pressed(key),
+            Action::BackspacePressed if self.is_active => self.backspace(),
             _ => {}
         }
     }
@@ -329,22 +513,9 @@ impl SendAction for TextWidgetComponent {
 
 
 
-
-
-use std::fs::File;
-use std::io::{self, BufReader, Read};
-
-fn read_file(path: &str) -> io::Result<String> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut contents = String::new();
-    reader.read_to_string(&mut contents)?;
-    Ok(contents)
-}
-
 fn bee_script() -> String{
-    read_file("texts/bee_script.txt").unwrap()
+    get_text("bee_script.txt").unwrap()
 }
 fn lotr_script() -> String{
-    read_file("texts/lotr.txt").unwrap()
+    get_text("lotr.txt").unwrap()
 }

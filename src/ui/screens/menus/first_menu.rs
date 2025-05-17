@@ -3,7 +3,7 @@ use tokio::sync::mpsc::{error::SendError, UnboundedSender};
 
 use crate::{action::Action, flux::SendAction, stores::Store, ui::list::{MenuList, MenuListComponent}};
 
-use super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen, ScreenMember};
 
 const SCREEN: Screen = Screen::FirstMenu;
 
@@ -14,7 +14,7 @@ pub struct FirstMenuComponent {
 impl FirstMenuComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self{
         let options = ["Solo", "Multi (in progress)", "Settings", "About"].into_iter().map(|el|el.to_string()).collect();
-        let actions = vec![Action::AskChangeToScreen(Screen::SoloGamesMenu), Action::None, Action::None, Action::None];
+        let actions = vec![Action::AskChangeToScreen(Screen::SoloGamesMenu), Action::None, Action::AskChangeToScreen(Screen::Settings), Action::None];
         let list_store = MenuListComponent::new("Menu".to_string(), dispatcher_tx, options, actions, SCREEN);
 
         FirstMenuComponent {list_store}

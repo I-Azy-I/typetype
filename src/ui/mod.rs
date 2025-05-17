@@ -2,6 +2,8 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub mod screens;
 pub mod text;
 pub mod list;
+pub mod gauge;
+pub mod clock;
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     // Cut the given rectangle into three vertical pieces

@@ -3,7 +3,7 @@ use tokio::sync::mpsc::{error::SendError, UnboundedSender};
 
 use crate::{action::Action, flux::SendAction, stores::Store, ui::list::{MenuList, MenuListComponent}};
 
-use super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen, ScreenMember};
 
 const SCREEN: Screen = Screen::SoloGamesMenu;
 
