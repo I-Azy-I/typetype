@@ -1,7 +1,7 @@
-use ratatui::{style::{Style, Stylize}, widgets::{Block, List, ListState, StatefulWidget, Widget}};
-use tokio::sync::mpsc::{error::SendError, UnboundedSender};
+use ratatui::widgets::{StatefulWidget, Widget};
+use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, flux::SendAction, stores::Store, ui::list::{MenuList, MenuListComponent}};
+use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
 
 use super::super::{super::*, Screen, ScreenMember};
 

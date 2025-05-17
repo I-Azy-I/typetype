@@ -1,17 +1,6 @@
-use std::io;
 
 use action::Action;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use dispatcher::Dispatcher;
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::Stylize,
-    symbols::border,
-    text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
-    DefaultTerminal, Frame,
-};
 mod app;
 use app::App;
 mod ui;

@@ -1,10 +1,9 @@
-use std::{iter, slice::{self, Iter}};
+use std::iter;
 
-use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Stylize}, symbols::line, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
-use serde_json::map::IntoIter;
+use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, flux::{self, SendAction}, stores::Store, text_generator::{get_text, TextGenerator, TextGeneratorIntoIter}};
+use crate::{action::Action, flux::{SendAction}, stores::Store, text_generator::{get_text, TextGenerator, TextGeneratorIntoIter}};
 
 use super::{gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
 

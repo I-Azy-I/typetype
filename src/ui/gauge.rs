@@ -1,9 +1,9 @@
 use std::mem;
 
-use ratatui::{symbols::line, widgets::{LineGauge, Widget}};
+use ratatui::widgets::{LineGauge, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, dispatcher, flux::SendAction, stores::Store};
+use crate::{action::Action, flux::SendAction, stores::Store};
 
 use super::screens::{Screen, ScreenMember};
 

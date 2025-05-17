@@ -1,18 +1,13 @@
-use std::{default, io, iter, time::Duration, u16::MIN};
+use std::{io, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Style, Stylize},
-    symbols::border,
-    text::{Line, Span, Text},
-    widgets::{Block, Paragraph, Widget},
-    DefaultTerminal, Frame,
+    widgets::Widget, Frame,
 };
-use tokio::{sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender}, time::sleep};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::{action::Action, ui::{screens::{Screen, ScreenRouterComponent}, text::TextWidgetComponent}};
+use crate::{action::Action, ui::screens::ScreenRouterComponent};
 use crate::stores::Store;
 
 

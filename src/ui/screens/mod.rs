@@ -1,4 +1,4 @@
-use std::{clone, fmt::Debug};
+use std::fmt::Debug;
 
 use menus::first_menu::FirstMenuComponent;
 use ratatui::widgets::Widget;

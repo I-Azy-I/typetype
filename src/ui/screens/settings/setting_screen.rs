@@ -1,12 +1,12 @@
 use std::iter;
 
-use ratatui::{layout::Size, style::{Style, Stylize}, widgets::{Block, List, ListState, Paragraph, StatefulWidget, Widget}};
-use tokio::sync::mpsc::{error::SendError, UnboundedSender};
+use ratatui::{layout::Size, widgets::{Paragraph, StatefulWidget, Widget}};
+use tokio::sync::mpsc::UnboundedSender;
 use tui_scrollview::{ScrollView, ScrollViewState};
 
-use crate::{action::Action, flux::SendAction, stores::Store, ui::list::{MenuList, MenuListComponent}};
+use crate::{action::Action, stores::Store};
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::Settings;
 

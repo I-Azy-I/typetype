@@ -1,9 +1,9 @@
 use std::{io, time::Duration};
 
 use ratatui::crossterm::event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedSender};
 
-use crate::{action::Action, dispatcher};
+use crate::action::Action;
 pub struct UserInput {
     dispatcher_tx: UnboundedSender<Action>,
 }

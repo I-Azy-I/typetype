@@ -1,9 +1,9 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use ratatui::{layout, style::{Color, Style, Stylize}, widgets::{Block, BorderType, Borders, LineGauge, List, ListState, StatefulWidget, Widget}};
+use ratatui::{style::{Color, Style, Stylize}, widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget}};
 use tokio::sync::mpsc::{error::SendError, UnboundedSender};
 
-use crate::{action::Action, flux::SendAction, stores::Store, ui::{clock::ClockWidget, gauge::{self, GaugeComponent}, list::{MenuList, MenuListComponent}, text::{SettingsText, TextWidgetComponent}}};
+use crate::{action::Action, flux::SendAction, stores::Store, ui::{clock::ClockWidget, gauge::{self}, text::{SettingsText, TextWidgetComponent}}};
 
 use super::super::{super::*, Screen, ScreenMember};
 
