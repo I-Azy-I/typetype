@@ -1,1 +1,8 @@
-pub mod solo_speed_game;
+pub mod solo_race_game;
+
+#[derive(Debug)]
+pub enum GameMod {
+    Race,
+    Clock,
+    Infinite
+}

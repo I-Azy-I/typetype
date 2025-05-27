@@ -1,35 +1,40 @@
-use std::time::Instant;
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use ratatui::{style::{Color, Style, Stylize}, widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget}};
 use tokio::sync::mpsc::{error::SendError, UnboundedSender};
 
-use crate::{action::Action, flux::SendAction, stores::Store, ui::{clock::ClockWidget, gauge::{self}, text::{SettingsText, TextWidgetComponent}}};
+use crate::{action::Action, flux::SendAction, settings::{self, RaceGameSettings, Settings}, stores::Store, ui::{clock::ClockWidget, gauge::{self}, text::{SettingsText, TextWidgetComponent}}};
 
 use super::super::{super::*, Screen, ScreenMember};
 
-const SCREEN: Screen = Screen::SoloSpeedGame;
-const PROGRESS_BAR: gauge::GaugeId = 0;
+const SCREEN: Screen = Screen::SoloRaceGame;
 
 #[derive(Debug)]
-pub struct ScreenSoloSpeedGameComponent {
+pub struct ScreenSoloRaceGameComponent {
     screen: Screen,
     dispatcher_tx: UnboundedSender<Action>,
     text_component: Option<TextWidgetComponent>,
-    start_time: Option<Instant>
-
+    start_time: Option<Instant>,
+    settings: Rc<RefCell<Settings>>
 }
-impl ScreenSoloSpeedGameComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self{
-        ScreenSoloSpeedGameComponent {screen: SCREEN, dispatcher_tx, text_component: None, start_time: None}
+impl ScreenSoloRaceGameComponent {
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self{
+        ScreenSoloRaceGameComponent {screen: SCREEN, dispatcher_tx, settings, text_component: None, start_time: None}
+    }
+    pub fn reset(&mut self){
+        self.start_time = None;
+       
+        self.text_component = Some(TextWidgetComponent::new(self.dispatcher_tx.clone(), self.screen, self.settings.borrow().game_settings.race_game_settings.text_origin.clone()));
     }
 }
 
-impl Store for  ScreenSoloSpeedGameComponent {
+impl Store for  ScreenSoloRaceGameComponent {
     fn update(&mut self, action: Action) {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen => {
                 self.send(Action::InitializeSoloSpeedGame).unwrap();
-                self.text_component = Some(TextWidgetComponent::new(self.dispatcher_tx.clone(), self.screen))
+                self.reset();
+                
             },
             Action::KeyPressed(_) if self.start_time.is_none() => self.start_time = Some(Instant::now()),
             _ => {}
@@ -39,12 +44,12 @@ impl Store for  ScreenSoloSpeedGameComponent {
         }
     }
 }
-impl SendAction for ScreenSoloSpeedGameComponent {
+impl SendAction for ScreenSoloRaceGameComponent {
     fn send(&self, action: Action) -> Result<(), SendError<Action>> {
         self.dispatcher_tx.send(action)
     }
 }
-impl Widget for &mut ScreenSoloSpeedGameComponent {
+impl Widget for &mut ScreenSoloRaceGameComponent {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized {

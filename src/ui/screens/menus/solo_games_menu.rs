@@ -1,7 +1,7 @@
 use ratatui::widgets::{StatefulWidget, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
+use crate::{action::Action, stores::Store, ui::list::{ MenuListComponent, MenuMultipleListComponent, MutipleEntry}};
 
 use super::super::{super::*, Screen, ScreenMember};
 
@@ -9,14 +9,19 @@ const SCREEN: Screen = Screen::SoloGamesMenu;
 
 #[derive(Debug)]
 pub struct SoloGamesMenuComponent {
-    list_store: MenuListComponent
+    list_store: MenuMultipleListComponent
 }
 impl SoloGamesMenuComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self{
-        let options = ["Clock", "Speed", "Zen", "Infinite"].into_iter().map(|el|el.to_string()).collect();
-        let actions = vec![Action::None, Action::AskChangeToScreen(Screen::SoloSpeedGame), Action::None, Action::None];
-        let list_store = MenuListComponent::new("Select your game mod".to_string(), dispatcher_tx, options, actions, SCREEN);
-
+        let entry_speed = MutipleEntry::new(["Speed", "Settings"].into_iter().map(|el|el.to_string()).collect(), vec![Action::AskChangeToScreen(Screen::SoloRaceGame), Action::AskChangeToScreen(Screen::SoloRaceSettingScreen) ]);
+        let entry_clock = MutipleEntry::new(["Clock", "Settings"].into_iter().map(|el|el.to_string()).collect(), vec![Action::None, Action::None ]);
+        let entry_zen = MutipleEntry::new(["Infinite", "Settings"].into_iter().map(|el|el.to_string()).collect(), vec![Action::None, Action::None ]);
+        let list_store = MenuMultipleListComponent::new(
+            "Select your game mod".to_string(), 
+            dispatcher_tx, 
+            vec![entry_speed, entry_clock, entry_zen],
+            vec![Constraint::Percentage(100), Constraint::Length(10)], 
+            SCREEN);
         SoloGamesMenuComponent {list_store}
     }
 }

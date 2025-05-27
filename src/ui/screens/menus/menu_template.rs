@@ -5,7 +5,7 @@ use crate::{action::Action, flux::SendAction, stores::Store, ui::list::{MenuList
 
 use super::{super::*, Screen, ScreenMember};
 
-const SCREEN: Screen = Screen::;
+const SCREEN: Screen = Screen;
 
 #[derive(Debug)]
 pub struct ScreenComponent {

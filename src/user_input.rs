@@ -1,9 +1,19 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{io, time::Duration};
+use std::sync::Arc;
 
-use ratatui::crossterm::event::{self, poll, Event, KeyCode, KeyEvent, KeyEventKind};
-use tokio::sync::mpsc::{UnboundedSender};
+use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
+use futures::{FutureExt, StreamExt};
+use ratatui::crossterm::event::Event;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::{
+  sync::{mpsc, Mutex},
+  task::JoinHandle,
+};
 
 use crate::action::Action;
+use crate::settings::Settings;
 pub struct UserInput {
     dispatcher_tx: UnboundedSender<Action>,
 }
@@ -11,41 +21,34 @@ impl UserInput {
     pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self {
         UserInput {dispatcher_tx}
     }
-    pub async fn main_loop(self){
+    pub async fn main_loop(self) -> io::Result<()> {
+        let mut reader = crossterm::event::EventStream::new();
+        use futures::pin_mut;
         loop {
             tokio::task::yield_now().await;
-            self.handle_events().unwrap();
+            let crossterm_event = reader.next().fuse();
+            pin_mut!(crossterm_event);
+            if let Some(Ok(event)) = crossterm_event.await {
+                match event {
+                    CrosstermEvent::Key(key_event) => self.handle_key_event(key_event),
+                    _ => {}
+                };
+            }            
         }
     }
-    fn is_event_available() -> io::Result<bool> {
-        // Zero duration says that the `poll` function must return immediately
-        // with an `Event` availability information
-        poll(Duration::from_secs(0))
-    }
-    fn handle_events(&self) -> io::Result<()> {
-        if !Self::is_event_available()? {
-            return Ok(());
-        }
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            _ => {}
-        };
-        Ok(())
-    }
+
     
     fn handle_key_event(&self, key_event: KeyEvent){
         
         let opt_action = match key_event.code {
-            KeyCode::Char(key) => Some(Action::KeyPressed(key)),
-            KeyCode::Backspace =>  Some(Action::BackspacePressed),
-            KeyCode::Esc => Some(Action::EscPressed),
-            KeyCode::Up => Some(Action::UpPressed),
-            KeyCode::Down => Some(Action::DownPressed),
-            KeyCode::Enter => Some(Action::EnterPressed),
+            crossterm::event::KeyCode::Char(key) => Some(Action::KeyPressed(key)),
+            crossterm::event::KeyCode::Backspace =>  Some(Action::BackspacePressed),
+            crossterm::event::KeyCode::Esc => Some(Action::EscPressed),
+            crossterm::event::KeyCode::Up => Some(Action::UpPressed),
+            crossterm::event::KeyCode::Down => Some(Action::DownPressed),
+            crossterm::event::KeyCode::Right => Some(Action::RightPressed),
+            crossterm::event::KeyCode::Left => Some(Action::LeftPressed),
+            crossterm::event::KeyCode::Enter => Some(Action::EnterPressed),
             _ => {None}
         };
         if let Some(action) = opt_action { self.dispatcher_tx.send(action).unwrap();}

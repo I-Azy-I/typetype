@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{io, time::Duration};
 
 use ratatui::{
@@ -7,6 +9,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
+use crate::settings::Settings;
 use crate::{action::Action, ui::screens::ScreenRouterComponent};
 use crate::stores::Store;
 
@@ -26,12 +29,13 @@ pub struct AppStore{
     dispatcher_tx: UnboundedSender<Action>,
     exit: bool,
     screen_router: ScreenRouterComponent,
+    settings: Rc<RefCell<Settings>>
 }
 impl  AppStore {
-    fn new(dispatcher_tx: UnboundedSender<Action>) -> (Self, UnboundedSender<Action>) {
+    fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> (Self, UnboundedSender<Action>) {
         let (action_tx, action_rx) = unbounded_channel::<Action>();
-        let screen_router = ScreenRouterComponent::new(dispatcher_tx.clone());
-        (AppStore {action_rx,dispatcher_tx, screen_router, exit: false}, action_tx)
+        let screen_router = ScreenRouterComponent::new(dispatcher_tx.clone(), settings.clone());
+        (AppStore {action_rx,dispatcher_tx, screen_router, settings, exit: false}, action_tx)
     }
     async fn update(&mut self) {
         // Set up a timeout of 10ms
@@ -73,22 +77,20 @@ impl  AppStore {
 #[derive(Debug)]
 pub struct App {
     app_store: AppStore,
-    
 }
 
 impl App {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>) ->  (Self, UnboundedSender<Action>) {
-        let (app_store, action_tx) = AppStore::new(dispatcher_tx);
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) ->  (Self, UnboundedSender<Action>) {
+        let (app_store, action_tx) = AppStore::new(dispatcher_tx, settings);
         (App {app_store}, action_tx)
     }
     /// runs the application's main loop until the user quits
-    pub async fn run(&mut self) -> io::Result<()> {
+    pub async fn run(&mut self ) -> io::Result<()> {
         let mut terminal = ratatui::init();
         self.app_store.dispatcher_tx.send(Action::StartingApp).unwrap();
         while !self.app_store.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.app_store.update().await;
-            
         }
         Ok(())
     }

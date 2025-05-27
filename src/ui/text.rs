@@ -1,11 +1,11 @@
-use std::iter;
+use std::{f64::consts::E, iter};
 
-use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
-use tokio::sync::mpsc::UnboundedSender;
+use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
+use tokio::sync::{mpsc::UnboundedSender, OnceCell};
 
-use crate::{action::Action, flux::{SendAction}, stores::Store, text_generator::{get_text, TextGenerator, TextGeneratorIntoIter}};
+use crate::{action::Action, async_utils::AsyncCache, dispatcher, flux::SendAction, settings::TextOrigin, stores::Store, text_generator::{self, get_text, TextGenerator, TextGeneratorIter}};
 
-use super::{gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
+use super::{centered_rect_with_length, gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
 
 const LOREM_LIPSUM: &str = "Lorem ipsum dolor  sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut";
 
@@ -85,25 +85,60 @@ impl Widget for  TypeLine {
 
 
 
+
+
 #[derive(Debug)]
-enum KindLength<I: Iterator<Item = String>> {
-    Unlimited(I),
+enum KindLength {
+    Unlimited,
     Finished
 }
 
 #[derive(Debug)]
 enum TextWidgetState {
+    Loading,
+    ErrorLoading,
     InProgress,
     DoneWithMistakes,
     Done
 }
 
 #[derive(Debug)]
+enum AsyncTextSource {
+    StaticText(AsyncCache<Option<String>>),
+    Generator(AsyncCache<Option<TextGenerator>>),
+}
+impl AsyncTextSource {
+    pub fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
+        Self::Generator(AsyncCache::new_and_init(Some(dispatcher_tx), None, move || TextGenerator::from_language(name, None)))
+    }
+    pub fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
+        Self::StaticText(AsyncCache::new_and_init(Some(dispatcher_tx), None, move || get_text(name)))
+    }
+
+    pub fn is_available(&self) -> bool {
+        match self {
+            AsyncTextSource::StaticText(async_cache) => async_cache.is_available(),
+            AsyncTextSource::Generator(async_cache) =>  async_cache.is_available(),
+        }
+    }
+
+    pub fn as_fail(&self) -> bool{
+        assert!(self.is_available());
+        match self {
+            AsyncTextSource::StaticText(async_cache) => async_cache.try_get().unwrap().is_none(),
+            AsyncTextSource::Generator(async_cache) =>  async_cache.try_get().unwrap().is_none(),
+        }
+    }
+}
+
+
+#[derive(Debug)]
 pub struct TextWidget {
-    kind_length: KindLength<TextGeneratorIntoIter>,
+    async_text_source: AsyncTextSource,
+    kind_length: KindLength,
 
     current_width: u16,
-    lines: Vec<TypeLine>,
+    lines: Option<Vec<TypeLine>>,
 
     pos_in_line: usize,
     n_line: usize,
@@ -116,100 +151,156 @@ pub struct TextWidget {
 
 
 impl TextWidget  {
-    fn new(text: String) -> Self {
-        let typechar_text: Vec<TypeChar> = text
-            .chars()
-            .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
-            .collect();
-        let total_size = typechar_text.len();
-        let lines = Self::get_lines(typechar_text, 0);
-        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Finished }
+    fn new(origin: TextOrigin, dispatcher_tx: UnboundedSender<Action>) -> Self {
+       match origin {
+        TextOrigin::Generated(name) => Self::from_language(name, dispatcher_tx),
+        TextOrigin::Text(name) => Self::from_text(name, dispatcher_tx),
+    }
     }
 
-    fn from_language(name: &str) -> Self{
-        let first_batch = 500;
-        let new_chars = TextGenerator::from_language(name, None)
-                    .into_iter()
-                    .take(first_batch)
-                    .flat_map(|text| {
-                        std::iter::once(TypeChar::space()) 
-                            .chain(text.chars().map(|c| TypeChar {
-                                char: c,
-                                state: CharacterState::NotTyped,
-                            }))
-                            .collect::<Vec<_>>() 
-                            .into_iter()
-                    }).skip(1);
-        let text_generator_into_iter = TextGenerator::from_language(name, None).into_iter().skip_n(first_batch);
-        let lines =  Self::get_lines_from_iterator(
-                    new_chars,
-                    100,
-                );
-        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size: 0, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Unlimited(text_generator_into_iter) }
+    fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
+        // let first_batch = 500;
+        let async_text_source = AsyncTextSource::from_language(name, dispatcher_tx);
+        // let new_chars = 
+        //             .into_iter()
+        //             .take(first_batch)
+        //             .flat_map(|text| {
+        //                 std::iter::once(TypeChar::space()) 
+        //                     .chain(text.chars().map(|c| TypeChar {
+        //                         char: c,
+        //                         state: CharacterState::NotTyped,
+        //                     }))
+        //                     .collect::<Vec<_>>() 
+        //                     .into_iter()
+        //             }).skip(1);
+        // let text_generator_into_iter = TextGenerator::from_language(name, None).await.into_iter().skip_n(first_batch);
+        // let lines =  Self::get_lines_from_iterator(
+        //             new_chars,
+        //             100,
+        //         );
+        TextWidget { async_text_source, current_width: 0, lines: None, pos_in_line: 0, n_line: 0, total_position: 0, total_size: 0, state: TextWidgetState::Loading, mistakes_counter: 0, kind_length: KindLength::Unlimited }
     } 
 
-    fn from_text(name: &str) -> Self {
-        let typechar_text: Vec<TypeChar> = get_text(name).unwrap()
-            .chars()
-            .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
-            .collect();
-        let total_size = typechar_text.len();
-        let lines = Self::get_lines(typechar_text, 100);
-        TextWidget { current_width: 0, lines, pos_in_line: 0, n_line: 0, total_position: 0, total_size, state: TextWidgetState::InProgress, mistakes_counter: 0, kind_length: KindLength::Finished }
+    fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
+        let async_text_source = AsyncTextSource::from_text(name, dispatcher_tx);
+        // let typechar_text: Vec<TypeChar> = get_text(name).await.unwrap()
+        //     .chars()
+        //     .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
+        //     .collect();
+        // let total_size = typechar_text.len();
+        // let lines = Self::get_lines(typechar_text, 100);
+        TextWidget { async_text_source, current_width: 0, lines: None, pos_in_line: 0, n_line: 0, total_position: 0, total_size: 0, state: TextWidgetState::Loading, mistakes_counter: 0, kind_length: KindLength::Finished }
     }
-
-    fn genrate_new_batch(&mut self, batch_size: u16, width_max: u16) {
-        match &mut self.kind_length {
-            KindLength::Unlimited(text_generator_into_iter) => {
-                let lines = std::mem::take(&mut self.lines);
-                let existing_chars = lines.into_iter()
-                    .flat_map(|tlist| tlist.line);
-
-            
-                let new_chars = text_generator_into_iter
-                    .take(batch_size as usize)
-                    .flat_map(|text| {
-                        std::iter::once(TypeChar::space()) 
-                            .chain(text.chars().map(|c| TypeChar {
-                                char: c,
-                                state: CharacterState::NotTyped,
-                            }))
-                            .collect::<Vec<_>>() 
-                            .into_iter()
-                    });
-
-                
-                self.lines =  Self::get_lines_from_iterator(
-                    existing_chars.chain(new_chars),
-                    width_max,
-                );
-
-            },
-            KindLength::Finished => panic!("Impossible to generate new text"),
+    fn init(&mut self) {
+        if self.async_text_source.as_fail() {
+            self.state = TextWidgetState::ErrorLoading;
+        } else {
+            self.state = TextWidgetState::InProgress;
+            match &self.async_text_source {
+                AsyncTextSource::StaticText(_) => self.init_text(),
+                AsyncTextSource::Generator(_) => self.genrate_new_batch(200, 20),
+            }
         }
+        
+    }
+    fn init_text(&mut self) {
+        match &self.async_text_source {
+            AsyncTextSource::StaticText(async_cache) => {
+                let typechar_text: Vec<TypeChar> = async_cache.try_get().as_ref().unwrap().as_ref().unwrap()
+                    .chars()
+                    .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
+                    .collect();
+                self.total_size = typechar_text.len();
+                self.lines = Some(Self::get_lines(typechar_text, 100));
+            }
+            AsyncTextSource::Generator(async_cache) => panic!("Should never happen"),
+        }
+    }
+    fn genrate_new_batch(&mut self, batch_size: u16, width_max: u16) {
+        match &self.async_text_source {
+            AsyncTextSource::Generator( async_cache) => {
+                assert!(async_cache.is_available());
+                match &mut self.kind_length {
+                    KindLength::Unlimited => {
+                        let lines = std::mem::take(&mut self.lines);
+                        let existing_chars = if let Some(lines) = lines {
+                            
+                            let existing_chars = lines.into_iter()
+                                .flat_map(|tlist| tlist.line);
+                            Some(existing_chars)
+                        } else {
+                           None 
+                        };
+                        
+                        let new_chars = async_cache.try_get().as_ref().unwrap().as_ref().unwrap().clone().iter()
+                            .take(batch_size as usize)
+                            .flat_map(|text| {
+                                std::iter::once(TypeChar::space()) 
+                                    .chain(text.chars().map(|c| TypeChar {
+                                        char: c,
+                                        state: CharacterState::NotTyped,
+                                    }))
+                                    .collect::<Vec<_>>() 
+                            }).collect::<Vec<_>>();
+
+                        if let Some(existing_chars) = existing_chars {
+                            let combined = existing_chars.chain(new_chars.into_iter());
+                            self.lines = Some(Self::get_lines_from_iterator(
+                                combined,
+                                width_max,
+                            ));
+                        } else {
+                            self.lines = Some(Self::get_lines_from_iterator(
+                                new_chars.into_iter().skip(1),
+                                width_max,
+                            ));
+                        }
+                        
+
+                    },
+                    KindLength::Finished => panic!("Impossible to generate new text"),
+            }
+        },
+        AsyncTextSource::StaticText(async_cache) => todo!(),
+        } 
+        
     }
 
     fn make_incorrect(&mut self){
-         self.lines[self.n_line].line[self.pos_in_line].incorrect();
+        if let Some(lines) = self.lines.as_mut() {
+            lines[self.n_line].line[self.pos_in_line].incorrect();
+        }
     }
 
     fn make_typed(&mut self){
-         self.lines[self.n_line].line[self.pos_in_line].typed();
+        if let Some(lines) = self.lines.as_mut() {
+            lines[self.n_line].line[self.pos_in_line].typed();
+        }
     }
 
     fn make_not_typed(&mut self){
-         self.lines[self.n_line].line[self.pos_in_line].not_typed();
+        if let Some(lines) = self.lines.as_mut() {
+            lines[self.n_line].line[self.pos_in_line].not_typed();
+        }
     }
     fn make_selected(&mut self){
-         self.lines[self.n_line].line[self.pos_in_line].selected();
+        if let Some(lines) = self.lines.as_mut() {
+            lines[self.n_line].line[self.pos_in_line].selected();
+        }
     }
 
     fn is_current_char(&self, key: char) -> bool {
-        self.lines[self.n_line].line[self.pos_in_line].char == key
+        assert!(self.lines.is_some());
+        if let Some(lines) = self.lines.as_ref() {
+            lines[self.n_line].line[self.pos_in_line].char == key
+        } else {
+            false
+        }
     }
     
     fn cursor_char(&self) -> TypeChar {
-        self.lines[self.n_line].line[self.pos_in_line]
+        assert!(self.lines.is_some());
+        self.lines.as_ref().unwrap()[self.n_line].line[self.pos_in_line]
     }
     fn cursor_state(&self) -> CharacterState {
         self.cursor_char().state
@@ -268,8 +359,9 @@ impl TextWidget  {
     }
 
     fn correct_position(&mut self){
+        assert!(self.lines.is_some());
         let mut acc = 0;
-        for (i, line) in self.lines.iter().enumerate() {
+        for (i, line) in self.lines.as_ref().unwrap().iter().enumerate() {
             let new_acc = acc + line.line.len();
             if new_acc >= self.total_position {
                 self.n_line = i;
@@ -283,9 +375,10 @@ impl TextWidget  {
    }
 
     fn reformat(&mut self, new_max_width: u16){
+        assert!(self.lines.is_some());
         let lines = std::mem::take(&mut self.lines);
-        let typechar_text_iter = lines.into_iter().flat_map(|tlist|tlist.line);
-        self.lines = Self::get_lines_from_iterator(typechar_text_iter, new_max_width);
+        let typechar_text_iter = lines.unwrap().into_iter().flat_map(|tlist|tlist.line);
+        self.lines = Some(Self::get_lines_from_iterator(typechar_text_iter, new_max_width));
         self.correct_position();
         self.current_width = new_max_width;
     }
@@ -294,14 +387,7 @@ impl TextWidget  {
 
 }
 
-impl Default for TextWidget {
-    fn default() -> Self {
-        // Self::from_language("french_1k.json")
-        Self::from_text("lotr.txt")
-        //Self::new( bee_script())
-        //Self::new( LOREM_LIPSUM.to_string(), 80)
-    }
-}
+
 
 pub enum SettingsText {
     ThreeLine,
@@ -311,19 +397,20 @@ pub enum SettingsText {
 
 impl TextWidget {
     fn render_n_lines(&mut self, area: Rect, buf: &mut Buffer, n: usize){
+        assert!(self.lines.is_some());
         let n = std::cmp::min(n, area.height as usize);
-        if self.lines.is_empty() { return; }
-        let start_idx = if self.n_line == 0 || self.n_line >= self.lines.len() {
+        if self.lines.as_ref().unwrap().is_empty() { return; }
+        let start_idx = if self.n_line == 0 || self.n_line >= self.lines.as_ref().unwrap().len() {
             0
         } else {
             self.n_line.checked_sub(n / 2).unwrap_or(0)
         };
-        if matches!(self.kind_length, KindLength::Unlimited(_)) {
-            if self.n_line + n/2 >= self.lines.len() {
+        if matches!(self.kind_length, KindLength::Unlimited) {
+            if self.n_line + n/2 >= self.lines.as_ref().unwrap().len() {
                 self.genrate_new_batch(area.width * 20, area.width);
             }
         }
-        let display_lines = self.lines
+        let display_lines = self.lines.as_ref().unwrap()
             .iter()
             .skip(start_idx)
             .take(n); // TODO: check if access in o(1)
@@ -339,8 +426,30 @@ impl TextWidget {
 impl StatefulWidget for &mut TextWidget {
     type State = SettingsText;
     fn render(self, area: Rect, buf: &mut Buffer, settings: &mut Self::State) {
-        if area.width != self.current_width {self.reformat(area.width);}
-        self.render_n_lines(area, buf, 5);
+        match self.state {
+            TextWidgetState::Loading => {
+                let msg = "Loading...";
+                let area = centered_rect_with_length(msg.len() as u16, 1, area);
+                let span =  Span::styled(
+                    msg,
+                    Style::new().italic());
+                span.render(area, buf);
+            },
+            TextWidgetState::ErrorLoading => {
+                let msg = "An error occured while opening the text's file...";
+                let area = centered_rect_with_length(msg.len() as u16, 1, area);
+                let span =  Span::styled(
+                    msg,
+                    Style::new().italic());
+                span.render(area, buf);
+            },
+            TextWidgetState::InProgress | TextWidgetState::DoneWithMistakes => {
+                if area.width != self.current_width {self.reformat(area.width);}
+                self.render_n_lines(area, buf, 5);
+            },
+            TextWidgetState::Done => todo!(),
+        }
+      
         // for (i,line ) in self.lines[0..std::cmp::min(self.lines.len(), area.height as usize)].iter().enumerate(){
         //     let new_area = Rect::new(area.x, area.y + i as u16, area.width, 1);
         //     line.clone().render(new_area, buf);
@@ -361,8 +470,9 @@ pub struct TextWidgetComponent {
 
 }
 impl TextWidgetComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, screen: Screen) -> Self {
-        TextWidgetComponent { screen, dispatcher_tx, widget: TextWidget::default(), is_active: true, linked_progress_bars: Vec::new() }
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, screen: Screen, origin: TextOrigin) -> Self {
+        let clone_dispatcher_tx = dispatcher_tx.clone();
+        TextWidgetComponent { screen, dispatcher_tx, widget: TextWidget::new(origin, clone_dispatcher_tx), is_active: true, linked_progress_bars: Vec::new() }
     }
 
     pub fn link_progress_bars(&mut self, id: GaugeId){
@@ -371,7 +481,7 @@ impl TextWidgetComponent {
 
     pub fn current_ratio(&self) -> f32 {
     
-        if self.widget.total_size == 0 || self.is_done() {1.0} else {self.widget.total_position as f32 / self.widget.total_size as f32}
+        if self.widget.total_size == 0 || self.is_done() {0.0} else {self.widget.total_position as f32 / self.widget.total_size as f32}
         
     }
 
@@ -379,12 +489,14 @@ impl TextWidgetComponent {
         match self.widget.state {
             TextWidgetState::InProgress => false,
             TextWidgetState::Done | TextWidgetState::DoneWithMistakes => true,
+            _ => panic!("Should never happen")
         }
     }
     pub fn is_done_correctly(&self) -> bool {
         match self.widget.state {
             TextWidgetState::InProgress | TextWidgetState::DoneWithMistakes => false,
             TextWidgetState::Done  => true,
+            _ => panic!("Should never happen")
         }
     }
 
@@ -397,6 +509,7 @@ impl TextWidgetComponent {
     }
 
     fn back_cursor(&mut self){
+        assert!(self.widget.lines.is_some());
         match self.widget.state {
             TextWidgetState::InProgress => {
                 if let Some(pos_in_line) = self.widget.pos_in_line.checked_sub(1) {
@@ -405,25 +518,27 @@ impl TextWidgetComponent {
                 }else {
                     if let Some(n_line) = self.widget.n_line.checked_sub(1) {
                         self.widget.n_line = n_line;
-                        self.widget.pos_in_line = self.widget.lines[n_line].line.len() - 1;
+                        self.widget.pos_in_line = self.widget.lines.as_ref().unwrap()[n_line].line.len() - 1;
                         self.widget.total_position -= 1; 
                     }
                 }
             },
             TextWidgetState::DoneWithMistakes => {},
             TextWidgetState::Done => {},
+            _ => panic!("Should never happen")
         }
         
         
     }
 
     fn advance_cursor(&mut self) -> bool{
-        if self.widget.pos_in_line + 1 < self.widget.lines[self.widget.n_line].line.len(){
+        assert!(self.widget.lines.is_some());
+        if self.widget.pos_in_line + 1 < self.widget.lines.as_ref().unwrap()[self.widget.n_line].line.len(){
             self.widget.pos_in_line += 1;
             self.widget.total_position += 1;
             true
         } else {
-            if self.widget.n_line + 1 < self.widget.lines.len() {
+            if self.widget.n_line + 1 < self.widget.lines.as_ref().unwrap().len() {
                 self.widget.pos_in_line = 0;
                 self.widget.n_line += 1;
                 self.widget.total_position +=1;
@@ -460,19 +575,20 @@ impl TextWidgetComponent {
                 };
                 self.widget.state = if self.widget.mistakes_counter > 0 { TextWidgetState::DoneWithMistakes } else { TextWidgetState::Done };
             },
-            TextWidgetState::Done => {},
+            TextWidgetState::Done | TextWidgetState::Loading | TextWidgetState::ErrorLoading => {},
         }
+        
         
 
     }
-    fn backspace(&mut self){
+    fn backspace(&mut self) {
+        if self.widget.lines.is_none() {return;}
         self.widget.make_not_typed();
         self.back_cursor();
         if self.widget.cursor_incorrect() {
             self.widget.mistakes_counter -= 1}
         self.widget.make_selected();
          if !matches!(self.widget.state, TextWidgetState::InProgress) { self.widget.state = TextWidgetState::InProgress };
-
     }
     
     
@@ -486,6 +602,7 @@ impl Store for TextWidgetComponent {
         match action {
             Action::KeyPressed(key) if self.is_active => self.key_pressed(key),
             Action::BackspacePressed if self.is_active => self.backspace(),
+            Action::AsyncCachedRecievedData(_) if self.widget.lines.is_none() && self.widget.async_text_source.is_available() => self.widget.init(),
             _ => {}
         }
     }
@@ -512,9 +629,10 @@ impl SendAction for TextWidgetComponent {
 
 
 
-fn bee_script() -> String{
-    get_text("bee_script.txt").unwrap()
+
+async fn  bee_script() -> String{
+    get_text("bee_script.txt".to_string()).await.unwrap()
 }
-fn lotr_script() -> String{
-    get_text("lotr.txt").unwrap()
+async fn lotr_script() -> String{
+    get_text("lotr.txt".to_string()).await.unwrap()
 }

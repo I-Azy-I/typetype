@@ -1,18 +1,17 @@
-use std::fmt::Debug;
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use menus::first_menu::FirstMenuComponent;
+use menus::{first_menu::FirstMenuComponent, settings::SoloRaceSettingScreen};
 use ratatui::widgets::Widget;
-use settings::setting_screen::SettingsScreenComponent;
 use menus::solo_games_menu::SoloGamesMenuComponent;
-use games::solo_speed_game::ScreenSoloSpeedGameComponent;
+use games::solo_race_game::ScreenSoloRaceGameComponent;
 use tokio::sync::mpsc::UnboundedSender;
 
 
-mod games;
+pub mod games;
 mod menus;
-mod settings;
 
-use crate::{action::Action, flux::SendAction, stores::Store};
+
+use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
 
 const STARTING_SCREEN: Screen = Screen::FirstMenu;
 
@@ -21,17 +20,17 @@ pub enum Screen {
     #[default]
     FirstMenu,
     SoloGamesMenu,
-    SoloSpeedGame,
-    Settings
+    SoloRaceGame,
+    SoloRaceSettingScreen
 }
 impl Screen {
     fn previous(self) -> Option<Screen>  {
         match self {
             Screen::FirstMenu => None,
             Screen::SoloGamesMenu => Some(Screen::FirstMenu),
-            Screen::SoloSpeedGame => Some(Screen::FirstMenu),
-            Screen::Settings => Some(Screen::FirstMenu),
-                    }
+            Screen::SoloRaceGame => Some(Screen::FirstMenu),
+            Screen::SoloRaceSettingScreen => Some(Screen::SoloGamesMenu),
+            }
     }
 }
 
@@ -40,20 +39,21 @@ impl Screen {
 pub struct ScreenRouterComponent {
     dispatcher_tx: UnboundedSender<Action>,
     pub current_sceen: Screen,
+    settings: Rc<RefCell<Settings>>,
     // screens
     first_menu: FirstMenuComponent,
     solo_game_menu: SoloGamesMenuComponent,
-    solo_speed_game: ScreenSoloSpeedGameComponent,
-    settings_screen: SettingsScreenComponent,
+    solo_speed_game: ScreenSoloRaceGameComponent,
+    setting_solo_race: SoloRaceSettingScreen,
 
 }
 impl ScreenRouterComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self {
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
         let first_menu = FirstMenuComponent::new(dispatcher_tx.clone());
         let solo_game_menu = SoloGamesMenuComponent::new(dispatcher_tx.clone());
-        let solo_speed_game = ScreenSoloSpeedGameComponent::new(dispatcher_tx.clone());
-        let settings_screen = SettingsScreenComponent{};
-        ScreenRouterComponent { dispatcher_tx, current_sceen: Screen::default(), first_menu, solo_game_menu, solo_speed_game, settings_screen }
+        let solo_speed_game = ScreenSoloRaceGameComponent::new(dispatcher_tx.clone(), settings.clone());
+        let setting_solo_race = SoloRaceSettingScreen::new(dispatcher_tx.clone(), settings.clone());
+        ScreenRouterComponent { dispatcher_tx, settings, current_sceen: Screen::default(), first_menu, solo_game_menu, solo_speed_game, setting_solo_race }
     }
 
     fn close_current(&self){
@@ -76,7 +76,7 @@ impl ScreenRouterComponent {
         self.first_menu.update(action);
         self.solo_game_menu.update(action);
         self.solo_speed_game.update(action);
-        self.settings_screen.update(action);
+        self.setting_solo_race.update(action);
     }
 
 }
@@ -133,8 +133,8 @@ impl Widget for &mut ScreenRouterComponent{
         match self.current_sceen {
             Screen::FirstMenu => self.first_menu.render(area, buf),
             Screen::SoloGamesMenu => self.solo_game_menu.render(area, buf),
-            Screen::SoloSpeedGame => self.solo_speed_game.render(area, buf),
-            Screen::Settings => self.settings_screen.render(area, buf),
+            Screen::SoloRaceGame => self.solo_speed_game.render(area, buf),
+            Screen::SoloRaceSettingScreen => self.setting_solo_race.render(area, buf),
         }
     }
 }

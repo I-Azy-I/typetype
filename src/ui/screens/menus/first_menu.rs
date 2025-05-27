@@ -14,7 +14,7 @@ pub struct FirstMenuComponent {
 impl FirstMenuComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self{
         let options = ["Solo", "Multi (in progress)", "Settings", "About"].into_iter().map(|el|el.to_string()).collect();
-        let actions = vec![Action::AskChangeToScreen(Screen::SoloGamesMenu), Action::None, Action::AskChangeToScreen(Screen::Settings), Action::None];
+        let actions = vec![Action::AskChangeToScreen(Screen::SoloGamesMenu), Action::None, Action::None, Action::None];
         let list_store = MenuListComponent::new("Menu".to_string(), dispatcher_tx, options, actions, SCREEN);
 
         FirstMenuComponent {list_store}

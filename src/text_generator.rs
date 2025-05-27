@@ -1,15 +1,26 @@
 
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{BufReader, Read};
+use tokio::fs::{self, File};
+use tokio::io::{BufReader};
+use tokio::io::AsyncReadExt;
+use tokio::sync::{OnceCell, RwLock};
+use tokio::task::JoinHandle;
 use std::error::Error;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::runtime::Handle;
 use rand::prelude::*;
 
 
 const PATH_LANGUAGES: &str = "languages/";
 const PATH_TEXTS: &str = "texts/";
+#[derive(Debug, Copy, Clone)]
+enum ErrorTextGenerator {
 
-#[derive(Debug, Serialize, Deserialize)]
+}
+
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct WordList {
     name: String,
@@ -17,21 +28,52 @@ struct WordList {
 }
 
 
-pub fn get_language(name: &str) -> Result<WordList, Box<dyn Error>> {
-    let file = File::open(format!("{PATH_LANGUAGES}{name}"))?;
-    let reader = BufReader::new(file);
-    let word_list = serde_json::from_reader(reader)?;
-    Ok(word_list)
+
+pub async fn get_language(name: String) -> Option<WordList> {
+    match File::open(format!("{PATH_LANGUAGES}{name}")).await {
+        Ok(file) => {
+            let mut reader = BufReader::new(file);
+            let mut contents = Vec::new();
+            if let Err(e) = reader.read_to_end(&mut contents).await {
+                eprintln!("Failed to read file '{}': {}", name, e);
+                return None;
+            }
+            match serde_json::from_slice(&contents) {
+                Ok(word_list) => Some(word_list),
+                Err(e) => {
+                    eprintln!("Failed to parse JSON for '{}': {}", name, e);
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to open file '{}': {}", name, e);
+            None
+        }
+    }
 }
 
 
 
-pub fn get_text(name: &str) -> Result<String, Box<dyn Error>> {
-    let file = File::open(format!("{PATH_TEXTS}{name}"))?;
-    let mut reader = BufReader::new(file);
-    let mut contents = String::new();
-    reader.read_to_string(&mut contents);
-    Ok(format_text(&contents))
+
+pub async fn get_text(name: String) -> Option<String> {
+    match File::open(format!("{PATH_TEXTS}{name}")).await {
+        Ok(file) => {
+            let mut reader = BufReader::new(file);
+            let mut contents = String::new();
+            match reader.read_to_string(&mut contents).await {
+                Ok(_) => Some(format_text(&contents)),
+                Err(e) => {
+                    eprintln!("Failed to read file '{}': {}", name, e);
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to open file '{}': {}", name, e);
+            None
+        }
+    }
 }
 
 
@@ -76,35 +118,36 @@ fn format_text(input: &str) -> String {
 }
 
 
-
+#[derive(Debug, Clone)]
 pub struct TextGenerator {
     word_list: WordList,
     rng: StdRng,
 }
 impl TextGenerator {
-    pub fn from_language(name: &str, seed: Option<u64>) -> Self {
-        let word_list = get_language(name).unwrap();
+    pub async fn from_language(name: String, seed: Option<u64>) -> Option<Self> {
+        let word_list = get_language(name).await?;
         let rng = if let Some(seed) = seed {
             StdRng::seed_from_u64(seed)
         } else {
             StdRng::from_os_rng()
         };
-        TextGenerator {word_list, rng}
+        Some(TextGenerator {word_list, rng})
     }
-    pub fn into_iter(self) -> TextGeneratorIntoIter {
-        TextGeneratorIntoIter {
-            word_list: self.word_list,
-            rng: self.rng,
+    pub fn iter<'a>(&'a mut self) -> TextGeneratorIter<'a> {
+            TextGeneratorIter {
+                word_list: &self.word_list,
+                rng: &mut self.rng,
+            }
         }
     }
-}
+
 
 #[derive(Debug)]
-pub struct TextGeneratorIntoIter {
-    word_list: WordList,
-    rng: StdRng,
+pub struct TextGeneratorIter<'a> {
+    word_list: &'a WordList,
+    rng: &'a mut StdRng,
 }
-impl TextGeneratorIntoIter {
+impl<'a> TextGeneratorIter<'a> {
     pub fn skip_n(mut self, n: usize) -> Self {
         for _ in 0..n {
             self.next();
@@ -112,10 +155,47 @@ impl TextGeneratorIntoIter {
         self
     }
 }
-impl Iterator for TextGeneratorIntoIter {
+impl<'a> Iterator for TextGeneratorIter<'a> {
     type Item = String;
     
     fn next(&mut self) -> Option<Self::Item> {
         self.word_list.words.choose(&mut self.rng).cloned()
     }
 }
+
+
+pub async fn fetch_languages_name() -> Vec<String> {
+    list_files_in_folder(PATH_LANGUAGES.to_string()).await
+}
+
+pub async  fn fetch_texts_name() -> Vec<String> {
+    list_files_in_folder(PATH_TEXTS.to_string()).await
+}
+
+async fn list_files_in_folder(path: String) -> Vec<String> {
+    let mut files = Vec::new();
+
+    match fs::read_dir(&path).await {
+        Ok(mut dir) => {
+            while let Some(entry_result) = dir.next_entry().await.unwrap_or_else(|e| {
+                eprintln!("Failed to read directory entry: {e}");
+                None
+            }) {
+                match entry_result.file_type().await {
+                    Ok(file_type) if file_type.is_file() => {
+                        match entry_result.file_name().into_string() {
+                            Ok(name) => files.push(name),
+                            Err(os_str) => eprintln!("Invalid UTF-8 in filename: {:?}", os_str),
+                        }
+                    }
+                    Ok(_) => {} // skip directories or other non-files
+                    Err(e) => eprintln!("Failed to get file type: {e}"),
+                }
+            }
+        }
+        Err(e) => eprintln!("Failed to open directory '{}': {}", path, e),
+    }
+
+    files
+}
+    

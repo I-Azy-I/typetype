@@ -15,10 +15,13 @@ pub enum Action {
     EnterPressed,
     UpPressed,
     DownPressed,
+    RightPressed,
+    LeftPressed,
     Exit,
     
     UpdateLineGauge(gauge::GaugeId, f32),
     InitializeSoloSpeedGame,
 
+    AsyncCachedRecievedData(Option<u32>),
     None
 }
