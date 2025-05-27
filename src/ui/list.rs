@@ -1,10 +1,9 @@
-use std::default;
 
-use ratatui::{layout::{self, Constraint, Direction, Layout}, style::{Style, Stylize}, text::Span, widgets::{canvas::Line, Block, List, ListState, StatefulWidget, Widget}};
-use tokio::{sync::mpsc::UnboundedSender, time::error::Elapsed};
+use ratatui::{layout::{Constraint, Direction, Layout}, style::{Style, Stylize}, text::Span, widgets::{Block, List, ListState, StatefulWidget, Widget}};
+use tokio::sync::mpsc::UnboundedSender;
 use crate::{action::Action, flux::SendAction, stores::Store};
 
-use super::{centered_rect, centered_rect_with_length, screens::{Screen, ScreenMember}};
+use super::{centered_rect_with_length, screens::{Screen, ScreenMember}};
 
 
 #[derive(Debug)]

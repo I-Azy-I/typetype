@@ -1,9 +1,9 @@
-use std::{cell::RefCell, default, fs, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use ratatui::{layout::{Constraint, Direction, Layout, Rect}, style::{Style, Stylize}, widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget}};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, settings::{self, Settings}, stores::Store, ui::{list::HorizontalList, screens::{games::GameMod, Screen, ScreenMember}, setting_screen::SettingsSoloGameComponent}};
+use crate::{action::Action, settings::Settings, stores::Store, ui::{list::HorizontalList, screens::{games::GameMod, Screen, ScreenMember}, setting_screen::SettingsSoloGameComponent}};
 
 
 

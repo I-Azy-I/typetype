@@ -1,19 +1,10 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::{io, time::Duration};
-use std::sync::Arc;
+use std::io;
 
-use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEvent};
+use crossterm::event::{Event as CrosstermEvent, KeyEvent};
 use futures::{FutureExt, StreamExt};
-use ratatui::crossterm::event::Event;
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::{
-  sync::{mpsc, Mutex},
-  task::JoinHandle,
-};
 
 use crate::action::Action;
-use crate::settings::Settings;
 pub struct UserInput {
     dispatcher_tx: UnboundedSender<Action>,
 }

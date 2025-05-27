@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc, time::Instant};
 use ratatui::{style::{Color, Style, Stylize}, widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget}};
 use tokio::sync::mpsc::{error::SendError, UnboundedSender};
 
-use crate::{action::Action, flux::SendAction, settings::{self, RaceGameSettings, Settings}, stores::Store, ui::{clock::ClockWidget, gauge::{self}, text::{SettingsText, TextWidgetComponent}}};
+use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store, ui::{clock::ClockWidget, text::{SettingsText, TextWidgetComponent}}};
 
 use super::super::{super::*, Screen, ScreenMember};
 

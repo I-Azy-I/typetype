@@ -1,9 +1,9 @@
-use std::{f64::consts::E, iter};
+use std::iter;
 
 use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
-use tokio::sync::{mpsc::UnboundedSender, OnceCell};
+use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, async_utils::AsyncCache, dispatcher, flux::SendAction, settings::TextOrigin, stores::Store, text_generator::{self, get_text, TextGenerator, TextGeneratorIter}};
+use crate::{action::Action, async_utils::AsyncCache, flux::SendAction, settings::TextOrigin, stores::Store, text_generator::{get_text, TextGenerator}};
 
 use super::{centered_rect_with_length, gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
 

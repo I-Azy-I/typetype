@@ -1,6 +1,6 @@
-use std::{cell::RefCell, default, iter, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-use ratatui::{layout::{Constraint, Direction, Layout, Rect, Size}, style::{Style, Stylize}, widgets::{self, Block, BorderType, Borders, List, ListDirection, ListState, Paragraph, StatefulWidget, Widget}};
+use ratatui::{layout::{Constraint, Direction, Layout, Rect}, style::{Style, Stylize}, widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget}};
 use tokio::sync::mpsc::UnboundedSender;
 
 

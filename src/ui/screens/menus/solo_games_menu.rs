@@ -1,7 +1,7 @@
 use ratatui::widgets::{StatefulWidget, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, stores::Store, ui::list::{ MenuListComponent, MenuMultipleListComponent, MutipleEntry}};
+use crate::{action::Action, stores::Store, ui::list::{ MenuMultipleListComponent, MutipleEntry}};
 
 use super::super::{super::*, Screen, ScreenMember};
 

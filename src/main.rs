@@ -1,5 +1,5 @@
 
-use std::{cell::{RefCell, RefMut}, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use action::Action;
 use dispatcher::Dispatcher;
@@ -15,7 +15,6 @@ mod text_generator;
 mod settings;
 mod async_utils;
 
-use ratatui::symbols::bar::Set;
 use settings::Settings;
 use tokio::sync::mpsc::UnboundedSender;
 use user_input::UserInput;
