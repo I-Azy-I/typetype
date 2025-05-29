@@ -22,7 +22,7 @@ where
     pub fn new_and_init<F, C, Fut>(func: F, callback: Option<C>) -> Self
     where
         F: FnOnce() -> Fut + Send + 'static,
-        C: FnOnce() -> () + Send + 'static,
+        C: FnOnce() + Send + 'static,
         Fut: std::future::Future<Output = T> + Send + 'static,
     {
         let cache = Self::new();
@@ -40,7 +40,7 @@ where
     pub fn init<F, C, Fut>(&self, func: F, callback: Option<C>)
     where
         F: FnOnce() -> Fut + Send + 'static,
-        C: FnOnce() -> () + Send + 'static,
+        C: FnOnce() + Send + 'static,
         Fut: std::future::Future<Output = T> + Send + 'static,
     {
         if self.value.get().is_some() {

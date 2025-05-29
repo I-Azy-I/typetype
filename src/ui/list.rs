@@ -25,7 +25,7 @@ pub struct MenuListComponent {
 impl MenuListComponent {
     pub fn new(title: String, dispatcher_tx: UnboundedSender<Action>, options:  Vec<String>, actions: Vec<Action>, screen: Screen) -> Self {
         assert!(options.len() == actions.len());
-        let entries = options.into_iter().zip(actions.into_iter()).map(|(option, action)| Entry {option, action: action});
+        let entries = options.into_iter().zip(actions).map(|(option, action)| Entry {option, action});
         MenuListComponent { title, dispatcher_tx, is_active: false, list_state: ListState::default().with_selected(Some(0)), entries: entries.collect(), screen}
     }
     pub fn get_options(&self) -> Vec<String> {
@@ -33,7 +33,7 @@ impl MenuListComponent {
     }
 
     pub fn get_actions(&self) -> Vec<Action> {
-        self.entries.iter().map(|entry| entry.action.clone()).collect()
+        self.entries.iter().map(|entry| entry.action).collect()
     }
 }
 impl Store for MenuListComponent {
@@ -95,7 +95,7 @@ pub struct MutipleEntry {
 
 impl MutipleEntry {
     pub fn new(options: Vec<String>, actions: Vec<Action>) -> Self {
-        let entries = options.into_iter().zip(actions.into_iter()).map(|(option, action)|
+        let entries = options.into_iter().zip(actions).map(|(option, action)|
         Entry { option, action}
         ).collect();
         MutipleEntry { entries }
@@ -137,7 +137,7 @@ impl MenuMultipleListComponent {
     }
 
     pub fn get_actions(&self, line: usize) -> Vec<Action> {
-        self.entries[line].entries.iter().map(|entry| entry.action.clone()).collect()
+        self.entries[line].entries.iter().map(|entry| entry.action).collect()
     }
 
     fn try_move_cursor_right(&mut self){
@@ -242,7 +242,7 @@ impl Widget for &MenuMultipleListComponent {
             .constraints(&self.constraints)
             .split(inner_area_block);
         // let area = centered_rect(70, 70, area);
-        for (i, &list_area) in list_layout.into_iter().enumerate() {
+        for (i, &list_area) in list_layout.iter().enumerate() {
             let items = self.get_options_column(i);
             let list = List::new(items)
             .highlight_style(Style::new().reversed())
@@ -351,12 +351,12 @@ impl ScrollableList {
     }
 
     pub fn next(&mut self){
-        if !self.is_selected{return}
+        if !self.is_selected{}
    
     }
 
     pub fn previous(&mut self){
-        if !self.is_selected{return}
+        if !self.is_selected{}
     }
 }
 

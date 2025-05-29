@@ -244,7 +244,7 @@ impl TextWidget  {
                             }).collect::<Vec<_>>();
 
                         if let Some(existing_chars) = existing_chars {
-                            let combined = existing_chars.chain(new_chars.into_iter());
+                            let combined = existing_chars.chain(new_chars);
                             self.lines = Some(Self::get_lines_from_iterator(
                                 combined,
                                 width_max,
@@ -403,12 +403,10 @@ impl TextWidget {
         let start_idx = if self.n_line == 0 || self.n_line >= self.lines.as_ref().unwrap().len() {
             0
         } else {
-            self.n_line.checked_sub(n / 2).unwrap_or(0)
+            self.n_line.saturating_sub(n / 2)
         };
-        if matches!(self.kind_length, KindLength::Unlimited) {
-            if self.n_line + n/2 >= self.lines.as_ref().unwrap().len() {
-                self.genrate_new_batch(area.width * 20, area.width);
-            }
+        if matches!(self.kind_length, KindLength::Unlimited) && self.n_line + n/2 >= self.lines.as_ref().unwrap().len() {
+            self.genrate_new_batch(area.width * 20, area.width);
         }
         let display_lines = self.lines.as_ref().unwrap()
             .iter()
@@ -515,12 +513,10 @@ impl TextWidgetComponent {
                 if let Some(pos_in_line) = self.widget.pos_in_line.checked_sub(1) {
                     self.widget.pos_in_line = pos_in_line;
                     self.widget.total_position -= 1; 
-                }else {
-                    if let Some(n_line) = self.widget.n_line.checked_sub(1) {
-                        self.widget.n_line = n_line;
-                        self.widget.pos_in_line = self.widget.lines.as_ref().unwrap()[n_line].line.len() - 1;
-                        self.widget.total_position -= 1; 
-                    }
+                }else if let Some(n_line) = self.widget.n_line.checked_sub(1) {
+                    self.widget.n_line = n_line;
+                    self.widget.pos_in_line = self.widget.lines.as_ref().unwrap()[n_line].line.len() - 1;
+                    self.widget.total_position -= 1; 
                 }
             },
             TextWidgetState::DoneWithMistakes => {},
@@ -537,15 +533,13 @@ impl TextWidgetComponent {
             self.widget.pos_in_line += 1;
             self.widget.total_position += 1;
             true
+        } else if self.widget.n_line + 1 < self.widget.lines.as_ref().unwrap().len() {
+            self.widget.pos_in_line = 0;
+            self.widget.n_line += 1;
+            self.widget.total_position +=1;
+            true
         } else {
-            if self.widget.n_line + 1 < self.widget.lines.as_ref().unwrap().len() {
-                self.widget.pos_in_line = 0;
-                self.widget.n_line += 1;
-                self.widget.total_position +=1;
-                true
-            } else {
-                false
-            }
+            false
         }
 
     }
