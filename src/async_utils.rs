@@ -1,36 +1,32 @@
 use std::sync::Arc;
 
-use tokio::sync::{mpsc::UnboundedSender, OnceCell};
+use tokio::sync::{OnceCell};
 
-use crate::{action::Action, flux::SendAction};
 
 
 #[derive(Debug, Clone)]
 pub struct AsyncCache<T> {
     value: Arc<OnceCell<T>>,
-    dispatcher_tx: Option<UnboundedSender<Action>>,
-    id: Option<u32>
 }
 
 impl<T> AsyncCache<T>
 where
-    T: Send + Sync + Clone + std::fmt::Debug + 'static,
+    T: Send + Sync + 'static,
 {
-    pub fn new(dispatcher_tx: Option<UnboundedSender<Action>>, id: Option<u32>) -> Self {
+    pub fn new() -> Self {
         Self {
             value: Arc::new(OnceCell::new()),
-            dispatcher_tx,
-            id
         }
     }
 
-    pub fn new_and_init<F, Fut>(dispatcher_tx: Option<UnboundedSender<Action>>, id: Option<u32>, func: F) -> Self
+    pub fn new_and_init<F, C, Fut>(func: F, callback: Option<C>) -> Self
     where
         F: FnOnce() -> Fut + Send + 'static,
+        C: FnOnce() -> () + Send + 'static,
         Fut: std::future::Future<Output = T> + Send + 'static,
     {
-        let cache = Self::new(dispatcher_tx, id);
-        cache.init(func);
+        let cache = Self::new();
+        cache.init(func, callback);
         cache
     }
 
@@ -41,9 +37,10 @@ where
 
 
     /// Spawns the background initialization task if not already started.
-    pub fn init<F, Fut>(&self, func: F)
+    pub fn init<F, C, Fut>(&self, func: F, callback: Option<C>)
     where
         F: FnOnce() -> Fut + Send + 'static,
+        C: FnOnce() -> () + Send + 'static,
         Fut: std::future::Future<Output = T> + Send + 'static,
     {
         if self.value.get().is_some() {
@@ -51,14 +48,12 @@ where
         }
 
         let cell = self.value.clone();
-        let dispatcher_tx = self.dispatcher_tx.clone();
-        let action_id = self.id; 
 
         tokio::spawn(async move {
             let result = func().await;
             let _ = cell.set(result);
-            if let Some(dispatcher_tx) = dispatcher_tx.as_ref() {
-                dispatcher_tx.send(Action::AsyncCachedRecievedData(action_id)).unwrap()
+            if let Some(callback) = callback {
+                callback();
             };
         });
     }
@@ -66,17 +61,5 @@ where
   
     pub fn is_available(&self) -> bool {
         self.try_get().is_some()
-    }
-
-}
-
-impl<T> SendAction for AsyncCache<T> {
-    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
-        if let Some(dispatcher) = self.dispatcher_tx.as_ref() {
-            dispatcher.send(action)
-        } else {
-            Ok(())
-        }
-        
     }
 }

@@ -109,10 +109,10 @@ enum AsyncTextSource {
 }
 impl AsyncTextSource {
     pub fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
-        Self::Generator(AsyncCache::new_and_init(Some(dispatcher_tx), None, move || TextGenerator::from_language(name, None)))
+        Self::Generator(AsyncCache::new_and_init( move || TextGenerator::from_language(name, None), Some(move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap())))
     }
     pub fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
-        Self::StaticText(AsyncCache::new_and_init(Some(dispatcher_tx), None, move || get_text(name)))
+        Self::StaticText(AsyncCache::new_and_init( move || get_text(name), Some(move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap())))
     }
 
     pub fn is_available(&self) -> bool {
