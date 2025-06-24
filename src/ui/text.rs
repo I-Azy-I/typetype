@@ -2,8 +2,9 @@ use std::iter;
 
 use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{StatefulWidget, Widget}};
 use tokio::sync::mpsc::UnboundedSender;
+use async_deferred::Deferred;
 
-use crate::{action::Action, async_utils::AsyncCache, flux::SendAction, settings::TextOrigin, stores::Store, text_generator::{get_text, TextGenerator}};
+use crate::{action::Action, flux::SendAction, settings::TextOrigin, stores::Store, text_generator::{get_text, TextGenerator}};
 
 use super::{centered_rect_with_length, gauge::{self, GaugeId}, screens::{Screen, ScreenMember}};
 
@@ -104,21 +105,21 @@ enum TextWidgetState {
 
 #[derive(Debug)]
 enum AsyncTextSource {
-    StaticText(AsyncCache<Option<String>>),
-    Generator(AsyncCache<Option<TextGenerator>>),
+    StaticText(Deferred<Option<String>>),
+    Generator(Deferred<Option<TextGenerator>>),
 }
 impl AsyncTextSource {
     pub fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
-        Self::Generator(AsyncCache::new_and_init( move || TextGenerator::from_language(name, None), Some(move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap())))
+        Self::Generator(Deferred::start_with_callback( move || TextGenerator::from_language(name, None), move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap()))
     }
     pub fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
-        Self::StaticText(AsyncCache::new_and_init( move || get_text(name), Some(move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap())))
+        Self::StaticText(Deferred::start_with_callback( move || get_text(name), move || dispatcher_tx.send(Action::AsyncCachedRecievedData(None)).unwrap()))
     }
 
     pub fn is_available(&self) -> bool {
         match self {
-            AsyncTextSource::StaticText(async_cache) => async_cache.is_available(),
-            AsyncTextSource::Generator(async_cache) =>  async_cache.is_available(),
+            AsyncTextSource::StaticText(async_cache) => async_cache.is_ready(),
+            AsyncTextSource::Generator(async_cache) =>  async_cache.is_ready(),
         }
     }
 
@@ -219,7 +220,7 @@ impl TextWidget  {
     fn genrate_new_batch(&mut self, batch_size: u16, width_max: u16) {
         match &self.async_text_source {
             AsyncTextSource::Generator( async_cache) => {
-                assert!(async_cache.is_available());
+                assert!(async_cache.is_ready());
                 match &mut self.kind_length {
                     KindLength::Unlimited => {
                         let lines = std::mem::take(&mut self.lines);

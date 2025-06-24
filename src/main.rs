@@ -13,7 +13,6 @@ mod dispatcher;
 mod user_input;
 mod text_generator;
 mod settings;
-mod async_utils;
 
 use settings::Settings;
 use tokio::sync::mpsc::UnboundedSender;
