@@ -2,21 +2,20 @@ use std::time::Duration;
 
 use ratatui::{text::Line, widgets::Widget};
 
-
-
 #[derive(Debug, Default)]
 pub struct ClockWidget {
-    duration: Duration
+    duration: Duration,
 }
 impl ClockWidget {
     pub fn new(duration: Duration) -> Self {
-        ClockWidget {duration}
+        ClockWidget { duration }
     }
 }
 impl Widget for ClockWidget {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
-        Self: Sized {
+        Self: Sized,
+    {
         let seconds = self.duration.as_secs() % 60;
         let minutes = (self.duration.as_secs() - seconds) / 60;
         let time_str = format!("{minutes:02}:{seconds:02}");

@@ -1,18 +1,13 @@
-
+use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::fs::{self, File};
-use tokio::io::{BufReader};
 use tokio::io::AsyncReadExt;
-use rand::prelude::*;
-
+use tokio::io::BufReader;
 
 const PATH_LANGUAGES: &str = "languages/";
 const PATH_TEXTS: &str = "texts/";
 #[derive(Debug, Copy, Clone)]
-enum ErrorTextGenerator {
-
-}
-
+enum ErrorTextGenerator {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -20,8 +15,6 @@ struct WordList {
     name: String,
     words: Vec<String>,
 }
-
-
 
 pub async fn get_language(name: String) -> Option<WordList> {
     match File::open(format!("{PATH_LANGUAGES}{name}")).await {
@@ -47,9 +40,6 @@ pub async fn get_language(name: String) -> Option<WordList> {
     }
 }
 
-
-
-
 pub async fn get_text(name: String) -> Option<String> {
     match File::open(format!("{PATH_TEXTS}{name}")).await {
         Ok(file) => {
@@ -70,12 +60,10 @@ pub async fn get_text(name: String) -> Option<String> {
     }
 }
 
-
-
 fn format_text(input: &str) -> String {
     // Step 1: Replace newlines with spaces
     let without_newlines = input.replace('\n', " ");
-    
+
     // Step 2 & 3: Handle space deduplication and punctuation spacing in a single pass
     let punctuation_marks = ['.', ',', '!', '?', ':', ';'];
     let mut result = String::with_capacity(without_newlines.len());
@@ -83,7 +71,7 @@ fn format_text(input: &str) -> String {
     while let Some(c) = iter.next() {
         // Add the current character
         result.push(c);
-        
+
         match c {
             // Case 1: Current character is a space
             ' ' => {
@@ -91,8 +79,8 @@ fn format_text(input: &str) -> String {
                 while iter.peek() == Some(&' ') {
                     iter.next();
                 }
-            },
-            
+            }
+
             // Case 2: Current character is punctuation
             c if punctuation_marks.contains(&c) => {
                 // If next character is not a space, add one
@@ -101,16 +89,15 @@ fn format_text(input: &str) -> String {
                         result.push(' ');
                     }
                 }
-            },
-            
+            }
+
             // Case 3: Any other character - do nothing special
             _ => {}
         }
     }
-    
+
     result
 }
-
 
 #[derive(Debug, Clone)]
 pub struct TextGenerator {
@@ -125,16 +112,15 @@ impl TextGenerator {
         } else {
             StdRng::from_os_rng()
         };
-        Some(TextGenerator {word_list, rng})
+        Some(TextGenerator { word_list, rng })
     }
     pub fn iter<'a>(&'a mut self) -> TextGeneratorIter<'a> {
-            TextGeneratorIter {
-                word_list: &self.word_list,
-                rng: &mut self.rng,
-            }
+        TextGeneratorIter {
+            word_list: &self.word_list,
+            rng: &mut self.rng,
         }
     }
-
+}
 
 #[derive(Debug)]
 pub struct TextGeneratorIter<'a> {
@@ -151,18 +137,17 @@ impl<'a> TextGeneratorIter<'a> {
 }
 impl<'a> Iterator for TextGeneratorIter<'a> {
     type Item = String;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         self.word_list.words.choose(&mut self.rng).cloned()
     }
 }
 
-
 pub async fn fetch_languages_name() -> Vec<String> {
     list_files_in_folder(PATH_LANGUAGES.to_string()).await
 }
 
-pub async  fn fetch_texts_name() -> Vec<String> {
+pub async fn fetch_texts_name() -> Vec<String> {
     list_files_in_folder(PATH_TEXTS.to_string()).await
 }
 
@@ -192,4 +177,3 @@ async fn list_files_in_folder(path: String) -> Vec<String> {
 
     files
 }
-    

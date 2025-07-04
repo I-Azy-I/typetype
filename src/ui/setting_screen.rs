@@ -1,15 +1,24 @@
 use std::{cell::RefCell, rc::Rc};
 
-use ratatui::{layout::{Constraint, Direction, Layout, Rect}, style::{Style, Stylize}, widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget}};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Style, Stylize},
+    widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget},
+};
 use tokio::sync::mpsc::UnboundedSender;
 
+use crate::{
+    action::Action,
+    flux::SendAction,
+    settings::{Settings, TextOrigin},
+    stores::Store,
+    ui::screens::ScreenMember,
+};
 
-use crate::{action::Action, flux::SendAction, settings::{Settings, TextOrigin}, stores::Store, ui::screens::ScreenMember};
-
-use super::{list::HorizontalList, screens::{games::GameMod, Screen}};
-
-
-
+use super::{
+    list::HorizontalList,
+    screens::{Screen, games::GameMod},
+};
 
 #[derive(Copy, Clone, Debug)]
 enum SelectedPart {
@@ -22,7 +31,7 @@ impl SelectedPart {
     fn next(self) -> Self {
         match self {
             SelectedPart::Generator => SelectedPart::Source,
-            SelectedPart::Source => SelectedPart::Source, 
+            SelectedPart::Source => SelectedPart::Source,
             SelectedPart::None => SelectedPart::None,
         }
     }
@@ -31,7 +40,7 @@ impl SelectedPart {
         match self {
             SelectedPart::Generator => SelectedPart::Generator,
             SelectedPart::Source => SelectedPart::Generator,
-            SelectedPart::None => SelectedPart::None, 
+            SelectedPart::None => SelectedPart::None,
         }
     }
 }
@@ -40,7 +49,7 @@ impl SelectedPart {
 enum GeneratingOption {
     #[default]
     Text,
-    Language
+    Language,
 }
 impl GeneratingOption {
     fn to_setting_param(self, name: String) -> TextOrigin {
@@ -72,12 +81,10 @@ impl GeneratingOption {
         };
         ListState::default().with_selected(Some(selected))
     }
-    fn get_list() -> [&'static str;2] {
+    fn get_list() -> [&'static str; 2] {
         ["Text", "Language"]
     }
 }
-
-
 
 #[derive(Debug)]
 pub struct SettingsSoloGameComponent {
@@ -93,27 +100,34 @@ pub struct SettingsSoloGameComponent {
     default_language: usize,
     screen: Screen,
     game_mod: GameMod,
-    is_active: bool
+    is_active: bool,
 }
 impl SettingsSoloGameComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>, screen: Screen, game_mod: GameMod) -> Self {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+        screen: Screen,
+        game_mod: GameMod,
+    ) -> Self {
         let default_text = 0;
         let default_language = 0;
         let texts = Vec::new();
         let languages = Vec::new();
 
-        SettingsSoloGameComponent { 
-            dispatcher_tx, 
-            screen, settings, 
-            state_generator: GeneratingOption::default(), 
+        SettingsSoloGameComponent {
+            dispatcher_tx,
+            screen,
+            settings,
+            state_generator: GeneratingOption::default(),
             state_source: 0,
             selected_part: SelectedPart::None,
             editing_part: SelectedPart::None,
-            default_language, 
-            default_text, texts, 
-            languages, 
+            default_language,
+            default_text,
+            texts,
+            languages,
             game_mod,
-            is_active: false
+            is_active: false,
         }
     }
 
@@ -124,7 +138,7 @@ impl SettingsSoloGameComponent {
         }
     }
     pub fn select_default(&mut self) {
-        self.selected_part= SelectedPart::Generator
+        self.selected_part = SelectedPart::Generator
     }
 
     pub fn select_next(&mut self) {
@@ -132,81 +146,92 @@ impl SettingsSoloGameComponent {
     }
     pub fn select_previous(&mut self) {
         self.selected_part = self.selected_part.previous();
-        
     }
     pub fn unselect(&mut self) {
         self.selected_part = SelectedPart::None;
     }
 
-
     pub fn next_generator(&mut self) {
         self.state_generator = self.state_generator.next();
         match self.game_mod {
-            GameMod::Race =>  self.settings.borrow_mut().game_settings.race_game_settings.text_origin = self.state_generator.to_setting_param(self.current_name_origin()),
+            GameMod::Race => {
+                self.settings
+                    .borrow_mut()
+                    .game_settings
+                    .race_game_settings
+                    .text_origin = self
+                    .state_generator
+                    .to_setting_param(self.current_name_origin())
+            }
             GameMod::Clock => todo!(),
             GameMod::Infinite => todo!(),
         }
-       
     }
 
     pub fn previous_generator(&mut self) {
         self.state_generator = self.state_generator.previous();
         match self.game_mod {
-            GameMod::Race =>  self.settings.borrow_mut().game_settings.race_game_settings.text_origin = self.state_generator.to_setting_param(self.current_name_origin()),
+            GameMod::Race => {
+                self.settings
+                    .borrow_mut()
+                    .game_settings
+                    .race_game_settings
+                    .text_origin = self
+                    .state_generator
+                    .to_setting_param(self.current_name_origin())
+            }
             GameMod::Clock => todo!(),
             GameMod::Infinite => todo!(),
         }
-       
     }
 
-    pub fn is_editing(&self) -> bool {!matches!(self.editing_part, SelectedPart::None)}
-    pub fn selected(&self) -> bool {!matches!(self.selected_part, SelectedPart::None)}
-
+    pub fn is_editing(&self) -> bool {
+        !matches!(self.editing_part, SelectedPart::None)
+    }
+    pub fn selected(&self) -> bool {
+        !matches!(self.selected_part, SelectedPart::None)
+    }
 }
 
-impl Store for  SettingsSoloGameComponent{
+impl Store for SettingsSoloGameComponent {
     fn update(&mut self, action: Action) {
-        if !self.is_active  {return;}
+        if !self.is_active {
+            return;
+        }
         match action {
-            Action::RightPressed => {
-                match self.editing_part {
-                    SelectedPart::Generator => self.next_generator(),
-                    SelectedPart::Source => self.editing_part = SelectedPart::None,
-                    SelectedPart::None => self.unselect(),
-                }
+            Action::RightPressed => match self.editing_part {
+                SelectedPart::Generator => self.next_generator(),
+                SelectedPart::Source => self.editing_part = SelectedPart::None,
+                SelectedPart::None => self.unselect(),
             },
-            Action::LeftPressed => 
-                match self.editing_part {
-                    SelectedPart::Generator => self.previous_generator(),
-                    SelectedPart::Source => self.editing_part = SelectedPart::None,
-                    SelectedPart::None => {},
-                },
-            
-            Action::UpPressed=> {
-                match self.editing_part {
-                    SelectedPart::Generator => self.editing_part = SelectedPart::None,
-                    SelectedPart::Source => {},
-                    SelectedPart::None => self.selected_part = self.selected_part.previous(),
+            Action::LeftPressed => match self.editing_part {
+                SelectedPart::Generator => self.previous_generator(),
+                SelectedPart::Source => self.editing_part = SelectedPart::None,
+                SelectedPart::None => {}
+            },
+
+            Action::UpPressed => match self.editing_part {
+                SelectedPart::Generator => self.editing_part = SelectedPart::None,
+                SelectedPart::Source => {}
+                SelectedPart::None => self.selected_part = self.selected_part.previous(),
+            },
+            Action::DownPressed => match self.editing_part {
+                SelectedPart::Generator => {
+                    self.editing_part = SelectedPart::None;
+                    self.selected_part = self.selected_part.next()
                 }
-            }
-            Action::DownPressed => {
-                match self.editing_part {
-                    SelectedPart::Generator => {self.editing_part = SelectedPart::None; self.selected_part = self.selected_part.next()},
-                    SelectedPart::Source => {},
-                    SelectedPart::None => self.selected_part = self.selected_part.next(),
-                }
-                
-            }
+                SelectedPart::Source => {}
+                SelectedPart::None => self.selected_part = self.selected_part.next(),
+            },
             Action::EnterPressed if !matches!(self.editing_part, SelectedPart::None) => {
                 self.editing_part = SelectedPart::None;
             }
-             Action::EnterPressed if matches!(self.editing_part, SelectedPart::None) => {
+            Action::EnterPressed if matches!(self.editing_part, SelectedPart::None) => {
                 self.editing_part = self.selected_part;
             }
 
             _ => {}
         }
-
     }
 }
 
@@ -232,51 +257,55 @@ impl ScreenMember for SettingsSoloGameComponent {
 impl Widget for &SettingsSoloGameComponent {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
-        Self: Sized {
-        
+        Self: Sized,
+    {
         //self.a_component.render(area, buf);
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Length(3),
-                Constraint::Percentage(50),
-            ])
+            .constraints(vec![Constraint::Length(3), Constraint::Percentage(50)])
             .split(area);
-        let block_generator = { 
+        let block_generator = {
             let block = Block::default()
                 .border_type(BorderType::Rounded)
                 .title(" Text generation ")
-                .borders(Borders::ALL); 
+                .borders(Borders::ALL);
             if matches!(self.editing_part, SelectedPart::Generator) {
                 block.border_style(Style::new().blue())
             } else if matches!(self.selected_part, SelectedPart::Generator) {
                 block.border_style(Style::new().yellow())
-            } else { 
+            } else {
                 block
             }
-        };      
-    
-        let list_genertator =  HorizontalList::new(GeneratingOption::get_list().into_iter().map(|el| el.to_string()).collect())
-            .block(block_generator)
-            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
-        ratatui::widgets::StatefulWidget::render(&list_genertator, layout[0], buf, &mut self.state_generator.to_list_state());
+        };
+
+        let list_genertator = HorizontalList::new(
+            GeneratingOption::get_list()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_generator)
+        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        ratatui::widgets::StatefulWidget::render(
+            &list_genertator,
+            layout[0],
+            buf,
+            &mut self.state_generator.to_list_state(),
+        );
 
         let block_src = {
             let block = Block::default()
                 .border_type(BorderType::Rounded)
-                .borders(Borders::ALL); 
+                .borders(Borders::ALL);
 
             if matches!(self.editing_part, SelectedPart::Source) {
                 block.border_style(Style::new().blue())
             } else if matches!(self.selected_part, SelectedPart::Source) {
                 block.border_style(Style::new().yellow())
-            } else { 
+            } else {
                 block
             }
         };
         block_src.render(layout[1], buf);
     }
 }
-
-
-

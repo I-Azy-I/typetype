@@ -4,5 +4,5 @@ pub mod solo_race_game;
 pub enum GameMod {
     Race,
     Clock,
-    Infinite
+    Infinite,
 }

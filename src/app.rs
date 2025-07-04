@@ -2,20 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::{io, time::Duration};
 
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    widgets::Widget, Frame,
-};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::settings::Settings;
-use crate::{action::Action, ui::screens::ScreenRouterComponent};
 use crate::stores::Store;
-
-
-
-
+use crate::{action::Action, ui::screens::ScreenRouterComponent};
 
 enum CurrentScreen {
     Menu,
@@ -24,35 +16,47 @@ enum CurrentScreen {
 }
 
 #[derive(Debug)]
-pub struct AppStore{
+pub struct AppStore {
     action_rx: UnboundedReceiver<Action>,
     dispatcher_tx: UnboundedSender<Action>,
     exit: bool,
     screen_router: ScreenRouterComponent,
-    settings: Rc<RefCell<Settings>>
+    settings: Rc<RefCell<Settings>>,
 }
-impl  AppStore {
-    fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> (Self, UnboundedSender<Action>) {
+impl AppStore {
+    fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+    ) -> (Self, UnboundedSender<Action>) {
         let (action_tx, action_rx) = unbounded_channel::<Action>();
         let screen_router = ScreenRouterComponent::new(dispatcher_tx.clone(), settings.clone());
-        (AppStore {action_rx,dispatcher_tx, screen_router, settings, exit: false}, action_tx)
+        (
+            AppStore {
+                action_rx,
+                dispatcher_tx,
+                screen_router,
+                settings,
+                exit: false,
+            },
+            action_tx,
+        )
     }
     async fn update(&mut self) {
         // Set up a timeout of 10ms
         let timeout = tokio::time::sleep(Duration::from_millis(10));
         tokio::pin!(timeout);
-        
+
         // Keep processing actions until timeout
         loop {
             // println!("waiting for acrtion");
             // let action = self.action_rx.recv().await.unwrap();
             // println!("action recieved");
             // self.text_store.update(action);
-            
+
             tokio::select! {
                 // Try to receive more actions (will not block if channel is empty)
                 biased;
-                
+
                 maybe_action = self.action_rx.recv() => {
                     match maybe_action {
                         Some(action) => {
@@ -80,34 +84,34 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) ->  (Self, UnboundedSender<Action>) {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+    ) -> (Self, UnboundedSender<Action>) {
         let (app_store, action_tx) = AppStore::new(dispatcher_tx, settings);
-        (App {app_store}, action_tx)
+        (App { app_store }, action_tx)
     }
     /// runs the application's main loop until the user quits
-    pub async fn run(&mut self ) -> io::Result<()> {
+    pub async fn run(&mut self) -> io::Result<()> {
         let mut terminal = ratatui::init();
-        self.app_store.dispatcher_tx.send(Action::StartingApp).unwrap();
+        self.app_store
+            .dispatcher_tx
+            .send(Action::StartingApp)
+            .unwrap();
         while !self.app_store.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.app_store.update().await;
         }
         Ok(())
     }
-  
+
     fn draw(&mut self, frame: &mut Frame) {
         frame.render_widget(self, frame.area());
     }
-
 }
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.app_store.screen_router.render(area, buf);
-        
     }
 }
-
-
-
-

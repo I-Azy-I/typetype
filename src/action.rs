@@ -6,9 +6,8 @@ pub enum Action {
 
     AskChangeToScreen(Screen),
     OpeningScreen(Screen),
-    ClosingScreen(Screen),  
+    ClosingScreen(Screen),
 
-    
     KeyPressed(char),
     BackspacePressed,
     EscPressed,
@@ -18,10 +17,10 @@ pub enum Action {
     RightPressed,
     LeftPressed,
     Exit,
-    
+
     UpdateLineGauge(gauge::GaugeId, f32),
     InitializeSoloSpeedGame,
 
     AsyncCachedRecievedData(Option<u32>),
-    None
+    None,
 }
