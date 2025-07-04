@@ -32,7 +32,7 @@ impl SoloGamesMenuComponent {
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
-            vec![Action::None, Action::None],
+            vec![Action::AskChangeToScreen(Screen::DebugMenu), Action::None],
         );
         let entry_inifinite = MutipleEntry::new(
             ["Infinite", "Settings"]
