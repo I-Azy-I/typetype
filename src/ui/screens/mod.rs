@@ -9,6 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub mod games;
 mod menus;
 
+use crate::ui::screens::games::solo_infinite_game::ScreenSoloInfiniteGameComponent;
 use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
 
 const STARTING_SCREEN: Screen = Screen::FirstMenu;
@@ -20,6 +21,7 @@ pub enum Screen {
     SoloGamesMenu,
     SoloRaceGame,
     SoloRaceSettingScreen,
+    SoloInfiniteGame,
 }
 impl Screen {
     fn previous(self) -> Option<Screen> {
@@ -28,6 +30,7 @@ impl Screen {
             Screen::SoloGamesMenu => Some(Screen::FirstMenu),
             Screen::SoloRaceGame => Some(Screen::FirstMenu),
             Screen::SoloRaceSettingScreen => Some(Screen::SoloGamesMenu),
+            Screen::SoloInfiniteGame => Some(Screen::SoloGamesMenu),
         }
     }
 }
@@ -42,14 +45,19 @@ pub struct ScreenRouterComponent {
     solo_game_menu: SoloGamesMenuComponent,
     solo_speed_game: ScreenSoloRaceGameComponent,
     setting_solo_race: SoloRaceSettingScreen,
+    solo_infinte_game: ScreenSoloInfiniteGameComponent,
 }
 impl ScreenRouterComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
         let first_menu = FirstMenuComponent::new(dispatcher_tx.clone());
         let solo_game_menu = SoloGamesMenuComponent::new(dispatcher_tx.clone());
+        // solo speed
         let solo_speed_game =
             ScreenSoloRaceGameComponent::new(dispatcher_tx.clone(), settings.clone());
         let setting_solo_race = SoloRaceSettingScreen::new(dispatcher_tx.clone(), settings.clone());
+        // solo inifinite
+        let solo_infinte_game =
+            ScreenSoloInfiniteGameComponent::new(dispatcher_tx.clone(), settings.clone());
         ScreenRouterComponent {
             dispatcher_tx,
             settings,
@@ -58,6 +66,7 @@ impl ScreenRouterComponent {
             solo_game_menu,
             solo_speed_game,
             setting_solo_race,
+            solo_infinte_game,
         }
     }
 
@@ -84,6 +93,7 @@ impl ScreenRouterComponent {
         self.solo_game_menu.update(action);
         self.solo_speed_game.update(action);
         self.setting_solo_race.update(action);
+        self.solo_infinte_game.update(action);
     }
 }
 
@@ -144,6 +154,7 @@ impl Widget for &mut ScreenRouterComponent {
             Screen::SoloGamesMenu => self.solo_game_menu.render(area, buf),
             Screen::SoloRaceGame => self.solo_speed_game.render(area, buf),
             Screen::SoloRaceSettingScreen => self.setting_solo_race.render(area, buf),
+            Screen::SoloInfiniteGame => self.solo_infinte_game.render(area, buf),
         }
     }
 }

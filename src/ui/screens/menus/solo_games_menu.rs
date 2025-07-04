@@ -34,17 +34,17 @@ impl SoloGamesMenuComponent {
                 .collect(),
             vec![Action::None, Action::None],
         );
-        let entry_zen = MutipleEntry::new(
+        let entry_inifinite = MutipleEntry::new(
             ["Infinite", "Settings"]
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
-            vec![Action::None, Action::None],
+            vec![Action::AskChangeToScreen(Screen::SoloInfiniteGame), Action::None],
         );
         let list_store = MenuMultipleListComponent::new(
             "Select your game mod".to_string(),
             dispatcher_tx,
-            vec![entry_speed, entry_clock, entry_zen],
+            vec![entry_speed, entry_clock, entry_inifinite],
             vec![Constraint::Percentage(100), Constraint::Length(10)],
             SCREEN,
         );
