@@ -20,6 +20,11 @@ use user_input::UserInput;
 
 #[tokio::main]
 async fn main() {
+    [cfg!(debug_assertions)];
+    {
+        let _ = simple_logging::log_to_file("test.log", log::LevelFilter::Debug);
+    }
+    
     let settings: Rc<RefCell<Settings>> =  Rc::new(RefCell::new(Settings::default()));
     let (mut dispatcher, dispatcher_tx) = Dispatcher::new();
     let (mut app, app_tx) = App::new(dispatcher_tx.clone(), settings);
