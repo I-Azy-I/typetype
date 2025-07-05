@@ -25,8 +25,9 @@ enum NumberWord {
     #[default]
     W50,
     W100,
-    Custom(usize),
+    Custom(usize), // TODO
 }
+
 impl NumberWord {
     fn next(self) -> Self {
         use NumberWord::*;
@@ -110,12 +111,12 @@ impl SoloRaceSettingScreen {
     fn next_choosed_number_words(&mut self) {
         self.chosen_length = self.chosen_length.next();
         let mut settings = self.settings.borrow_mut();
-        settings.game_settings.race_game_settings.number_words = self.chosen_length.value()
+        settings.game_settings.race_game_settings.number_words = self.chosen_length.value() as usize
     }
     fn previous_choosed_number_words(&mut self) {
         self.chosen_length = self.chosen_length.previous();
         let mut settings = self.settings.borrow_mut();
-        settings.game_settings.race_game_settings.number_words = self.chosen_length.value()
+        settings.game_settings.race_game_settings.number_words = self.chosen_length.value() as usize
     }
 }
 
