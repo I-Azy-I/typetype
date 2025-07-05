@@ -44,15 +44,10 @@ impl ScreenSoloRaceGameComponent {
         self.start_time = None;
         self.start_time = None;
         let (text_origin, number_words, offset) = {
-            let race_game_settings = &self.settings
-                    .borrow()
-                    .game_settings
-                    .race_game_settings;
-            let text_origin = race_game_settings
-                    .text_origin
-                    .clone();
+            let race_game_settings = &self.settings.borrow().game_settings.race_game_settings;
+            let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
-    
+
             let offset = race_game_settings.offset;
             (text_origin, number_words, offset)
         };
@@ -61,8 +56,7 @@ impl ScreenSoloRaceGameComponent {
             self.screen,
             text_origin,
             Some(number_words),
-            offset
-            
+            offset,
         ));
     }
 }

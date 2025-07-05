@@ -1,4 +1,7 @@
-use ratatui::{text::Span, widgets::{StatefulWidget, Widget}};
+use ratatui::{
+    text::Span,
+    widgets::{StatefulWidget, Widget},
+};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
@@ -8,9 +11,7 @@ use super::super::{super::*, Screen, ScreenMember};
 const SCREEN: Screen = Screen::FirstMenu;
 
 #[derive(Debug)]
-pub struct DebugMenuComponent {
-
-}
+pub struct DebugMenuComponent {}
 impl DebugMenuComponent {
     pub fn new() -> Self {
         DebugMenuComponent {}
@@ -18,8 +19,7 @@ impl DebugMenuComponent {
 }
 
 impl Store for DebugMenuComponent {
-    fn update(&mut self, _action: Action) {
-    }
+    fn update(&mut self, _action: Action) {}
 }
 
 impl Widget for &DebugMenuComponent {

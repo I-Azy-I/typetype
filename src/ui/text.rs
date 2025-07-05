@@ -1,7 +1,7 @@
-
 use core::num;
 use std::{
-    iter::{self}, time::Instant
+    iter::{self},
+    time::Instant,
 };
 
 use async_deferred::Deferred;
@@ -137,26 +137,28 @@ impl AsyncTextSource {
             },
         ))
     }
-    pub fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>, number_words: Option<usize>, offset: Option<usize>) -> Self {
+    pub fn from_text(
+        name: String,
+        dispatcher_tx: UnboundedSender<Action>,
+        number_words: Option<usize>,
+        offset: Option<usize>,
+    ) -> Self {
         Self::StaticText(Deferred::start_with_callback(
-            async move  || 
-                get_text(name).await
-                    .map(|text| {
-                        match number_words {
-                            None => text.split_whitespace()
-                                .skip(offset.unwrap_or(0))
-                                .collect::<Vec<&str>>()
-                                .join(" "),
-                            Some(n_words) => {
-                                text.split_whitespace()
-                                .skip(offset.unwrap_or(0))
-                                .take(n_words)
-                                .collect::<Vec<&str>>()
-                                .join(" ")
-                            }
-                        }
-                        
-    }),
+            async move || {
+                get_text(name).await.map(|text| match number_words {
+                    None => text
+                        .split_whitespace()
+                        .skip(offset.unwrap_or(0))
+                        .collect::<Vec<&str>>()
+                        .join(" "),
+                    Some(n_words) => text
+                        .split_whitespace()
+                        .skip(offset.unwrap_or(0))
+                        .take(n_words)
+                        .collect::<Vec<&str>>()
+                        .join(" "),
+                })
+            },
             move || {
                 dispatcher_tx
                     .send(Action::AsyncCachedRecievedData(None))
@@ -212,7 +214,7 @@ impl WpsTracker {
         sum / N_WORD_FOR_WPS as f32
     }
     fn wps(&self) -> f32 {
-      60.0 / self.mean()
+        60.0 / self.mean()
     }
 }
 
@@ -236,15 +238,23 @@ pub struct TextWidget {
 }
 
 impl TextWidget {
-    fn new(origin: TextOrigin, dispatcher_tx: UnboundedSender<Action>, number_words: Option<usize>, offset: Option<usize>) -> Self {
+    fn new(
+        origin: TextOrigin,
+        dispatcher_tx: UnboundedSender<Action>,
+        number_words: Option<usize>,
+        offset: Option<usize>,
+    ) -> Self {
         match origin {
             TextOrigin::Generated(name) => Self::from_language(name, dispatcher_tx, number_words),
-            TextOrigin::Text(name) => Self::from_text(name, dispatcher_tx, number_words, offset
-            ),
+            TextOrigin::Text(name) => Self::from_text(name, dispatcher_tx, number_words, offset),
         }
     }
 
-    fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>, number_words: Option<usize>) -> Self {
+    fn from_language(
+        name: String,
+        dispatcher_tx: UnboundedSender<Action>,
+        number_words: Option<usize>,
+    ) -> Self {
         // let first_batch = 500;
         let async_text_source = AsyncTextSource::from_language(name, dispatcher_tx);
         // let new_chars =
@@ -285,8 +295,14 @@ impl TextWidget {
         }
     }
 
-    fn from_text(name: String, dispatcher_tx: UnboundedSender<Action>, number_words: Option<usize>, offset: Option<usize>) -> Self {
-        let async_text_source = AsyncTextSource::from_text(name, dispatcher_tx, number_words, offset);
+    fn from_text(
+        name: String,
+        dispatcher_tx: UnboundedSender<Action>,
+        number_words: Option<usize>,
+        offset: Option<usize>,
+    ) -> Self {
+        let async_text_source =
+            AsyncTextSource::from_text(name, dispatcher_tx, number_words, offset);
         // let typechar_text: Vec<TypeChar> = get_text(name).await.unwrap()
         //     .chars()
         //     .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
@@ -353,7 +369,7 @@ impl TextWidget {
         match &self.async_text_source {
             AsyncTextSource::Generator(async_cache) => {
                 assert!(async_cache.is_ready());
-                
+
                 let lines = std::mem::take(&mut self.lines);
                 let existing_chars = if let Some(lines) = lines {
                     let existing_chars = lines.into_iter().flat_map(|tlist| tlist.line);
@@ -638,7 +654,13 @@ pub struct TextWidgetComponent {
     pub widget: TextWidget,
 }
 impl TextWidgetComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, screen: Screen, origin: TextOrigin, number_words: Option<usize>, offset: Option<usize>) -> Self {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        screen: Screen,
+        origin: TextOrigin,
+        number_words: Option<usize>,
+        offset: Option<usize>,
+    ) -> Self {
         let clone_dispatcher_tx = dispatcher_tx.clone();
         TextWidgetComponent {
             screen,
@@ -711,7 +733,6 @@ impl TextWidgetComponent {
         }
     }
 
-
     fn key_pressed(&mut self, key: char) {
         // we asume that enter are equilvalent to space
         let key = if key == '\n' { ' ' } else { key };
@@ -750,7 +771,6 @@ impl TextWidgetComponent {
                 self.widget.state = if self.widget.mistakes_counter > 0 {
                     TextWidgetState::DoneWithMistakes
                 } else {
-                   
                     TextWidgetState::Done
                 };
             }
@@ -771,9 +791,10 @@ impl TextWidgetComponent {
             self.widget.state = TextWidgetState::InProgress
         };
     }
-    
+
     fn process_end_game(&self) {
-        self.send(Action::AskChangeToScreen(Screen::DebugMenu)).expect("to be able to change")
+        self.send(Action::AskChangeToScreen(Screen::DebugMenu))
+            .expect("to be able to change")
     }
 
     pub fn wpm(&self) -> f32 {

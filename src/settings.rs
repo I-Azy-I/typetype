@@ -21,7 +21,7 @@ pub struct ClockGameSettings {
 pub struct RaceGameSettings {
     pub text_origin: TextOrigin,
     pub number_words: usize,
-    pub offset: Option<usize>
+    pub offset: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

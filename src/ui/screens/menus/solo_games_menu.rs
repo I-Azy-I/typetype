@@ -39,7 +39,10 @@ impl SoloGamesMenuComponent {
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
-            vec![Action::AskChangeToScreen(Screen::SoloInfiniteGame), Action::None],
+            vec![
+                Action::AskChangeToScreen(Screen::SoloInfiniteGame),
+                Action::None,
+            ],
         );
         let list_store = MenuMultipleListComponent::new(
             "Select your game mod".to_string(),

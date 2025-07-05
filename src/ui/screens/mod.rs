@@ -24,7 +24,7 @@ pub enum Screen {
     SoloRaceSettingScreen,
     SoloInfiniteGame,
 
-    DebugMenu
+    DebugMenu,
 }
 impl Screen {
     fn previous(self) -> Option<Screen> {
@@ -101,7 +101,6 @@ impl ScreenRouterComponent {
         self.solo_speed_game.update(action);
         self.setting_solo_race.update(action);
         self.solo_infinte_game.update(action);
-
     }
 }
 
