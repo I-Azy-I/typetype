@@ -1,9 +1,9 @@
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::Stylize,
     text::Span,
-    widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, StatefulWidget, Widget},
 };
 use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 

@@ -2,11 +2,10 @@ use ratatui::{
     text::Span,
     widgets::{StatefulWidget, Widget},
 };
-use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
+use crate::{action::Action, stores::Store};
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::FirstMenu;
 
