@@ -18,9 +18,6 @@ pub enum Action {
     LeftPressed,
     Exit,
 
-    UpdateLineGauge(gauge::GaugeId, f32),
-    InitializeSoloSpeedGame,
-
     AsyncCachedRecievedData(Option<u32>),
     None,
 }

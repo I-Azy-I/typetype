@@ -62,10 +62,6 @@ impl<'a> SendAction for GaugeComponent<'a> {
 impl<'a> Store for GaugeComponent<'a> {
     fn update(&mut self, action: Action) {
         match action {
-            Action::UpdateLineGauge(id, ratio) if id == self.id => {
-                let old_widget = mem::take(&mut self.widget);
-                self.widget = old_widget.ratio(ratio.into());
-            }
             _ => {}
         }
     }

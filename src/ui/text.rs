@@ -638,7 +638,7 @@ impl StatefulWidget for &mut TextWidget {
                 }
                 self.render_n_lines(area, buf, 5);
             }
-            TextWidgetState::Done => {},
+            TextWidgetState::Done => {}
         }
 
         // for (i,line ) in self.lines[0..std::cmp::min(self.lines.len(), area.height as usize)].iter().enumerate(){
@@ -690,7 +690,6 @@ impl TextWidgetComponent {
         match self.widget.state {
             TextWidgetState::Done => true,
             _ => false,
-
         }
     }
 
@@ -763,7 +762,7 @@ impl TextWidgetComponent {
             }
             TextWidgetState::DoneWithMistakes => {
                 if self.widget.is_current_char(key) {
-                    debug!("a: {}", self.widget.is_cursor_incorrect() );
+                    debug!("a: {}", self.widget.is_cursor_incorrect());
                     if self.widget.is_cursor_incorrect() {
                         self.widget.mistakes_counter -= 1;
                     }
@@ -793,20 +792,17 @@ impl TextWidgetComponent {
             self.widget.mistakes_counter -= 1
         }
 
-
         self.widget.make_not_typed();
         self.back_cursor();
-         if self.widget.is_cursor_incorrect() {
+        if self.widget.is_cursor_incorrect() {
             self.widget.mistakes_counter -= 1
         }
-        
+
         self.widget.make_selected();
         if !matches!(self.widget.state, TextWidgetState::InProgress) {
             self.widget.state = TextWidgetState::InProgress
         };
     }
-
-
 
     pub fn wpm(&self) -> f32 {
         self.widget.wpm()

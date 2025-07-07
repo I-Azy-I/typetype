@@ -7,7 +7,7 @@ use crate::{action::Action, stores::Store};
 
 use super::super::{super::*, Screen};
 
-const SCREEN: Screen = Screen::FirstMenu;
+const SCREEN: Screen = Screen::DebugMenu;
 
 #[derive(Debug)]
 pub struct DebugMenuComponent {}

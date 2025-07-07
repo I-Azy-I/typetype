@@ -16,6 +16,7 @@ use crate::{
         clock::ClockWidget,
         text::{SettingsText, TextWidgetComponent},
     },
+    win_data::WinData,
 };
 
 use super::super::{super::*, Screen, ScreenMember};
@@ -31,7 +32,11 @@ pub struct ScreenSoloInfiniteGameComponent {
     settings: Rc<RefCell<Settings>>,
 }
 impl ScreenSoloInfiniteGameComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+        win_data: Rc<RefCell<WinData>>,
+    ) -> Self {
         ScreenSoloInfiniteGameComponent {
             screen: SCREEN,
             dispatcher_tx,
@@ -64,7 +69,6 @@ impl Store for ScreenSoloInfiniteGameComponent {
     fn update(&mut self, action: Action) {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen => {
-                self.send(Action::InitializeSoloSpeedGame).unwrap();
                 self.reset();
             }
             Action::KeyPressed(_) if self.start_time.is_none() => {

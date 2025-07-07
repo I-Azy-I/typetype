@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
+use log::debug;
 use ratatui::{
     style::{Color, Style, Stylize},
     text::Span,
@@ -16,6 +17,7 @@ use crate::{
         clock::ClockWidget,
         text::{SettingsText, TextWidgetComponent},
     },
+    win_data::{GameMod, RaceData, WinData},
 };
 
 use super::super::{super::*, Screen, ScreenMember};
@@ -29,20 +31,26 @@ pub struct ScreenSoloRaceGameComponent {
     text_component: Option<TextWidgetComponent>,
     start_time: Option<Instant>,
     settings: Rc<RefCell<Settings>>,
+    shr_win_data: Rc<RefCell<WinData>>,
 }
 impl ScreenSoloRaceGameComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+        shr_win_data: Rc<RefCell<WinData>>,
+    ) -> Self {
         ScreenSoloRaceGameComponent {
             screen: SCREEN,
             dispatcher_tx,
             settings,
             text_component: None,
             start_time: None,
+            shr_win_data,
         }
     }
     pub fn reset(&mut self) {
         self.start_time = None;
-        self.start_time = None;
+
         let (text_origin, number_words, offset) = {
             let race_game_settings = &self.settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
@@ -59,13 +67,35 @@ impl ScreenSoloRaceGameComponent {
             offset,
         ));
     }
+
+    fn process_end(&mut self) {
+        // edit data for end screen
+
+        let game = GameMod::Race(RaceData {
+            time: Instant::now() - self.start_time.expect("time to have stated"),
+            n_words: self
+                .settings
+                .borrow()
+                .game_settings
+                .race_game_settings
+                .number_words,
+        });
+
+        {
+            let mut shr_win_data = self.shr_win_data.borrow_mut();
+            shr_win_data.game = game;
+        }
+        self.send(Action::AskChangeToScreen(Screen::WinMenu))
+            .expect("to be able to change screen");
+        self.start_time = None;
+        self.text_component = None;
+    }
 }
 
 impl Store for ScreenSoloRaceGameComponent {
     fn update(&mut self, action: Action) {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen => {
-                self.send(Action::InitializeSoloSpeedGame).unwrap();
                 self.reset();
             }
             Action::KeyPressed(_) if self.start_time.is_none() => {
@@ -75,6 +105,12 @@ impl Store for ScreenSoloRaceGameComponent {
         }
         if let Some(text) = self.text_component.as_mut() {
             text.update_screen_member(action);
+        }
+        if let Some(text_component) = self.text_component.as_ref() {
+            debug!("{}", text_component.is_done_correctly());
+            if text_component.is_done_correctly() {
+                self.process_end();
+            }
         }
     }
 }

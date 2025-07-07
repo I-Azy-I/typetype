@@ -12,6 +12,7 @@ mod stores;
 mod text_generator;
 mod ui;
 mod user_input;
+mod win_data;
 
 use settings::Settings;
 use tokio::sync::mpsc::UnboundedSender;
