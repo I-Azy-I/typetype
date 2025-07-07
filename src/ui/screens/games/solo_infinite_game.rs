@@ -45,7 +45,7 @@ impl ScreenSoloInfiniteGameComponent {
             start_time: None,
         }
     }
-    pub fn reset(&mut self) {
+    pub fn load_settings(&mut self) {
         self.start_time = None;
         let (text_origin, number_words) = {
             let race_game_settings = &self.settings.borrow().game_settings.race_game_settings;
@@ -58,6 +58,7 @@ impl ScreenSoloInfiniteGameComponent {
             self.dispatcher_tx.clone(),
             self.screen,
             text_origin,
+            "",
             Some(number_words),
             None,
             Some(TextStartEnd::Start),
@@ -70,7 +71,7 @@ impl Store for ScreenSoloInfiniteGameComponent {
     fn update(&mut self, action: Action) {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen => {
-                self.reset();
+                self.load_settings();
             }
             Action::KeyPressed(_) if self.start_time.is_none() => {
                 self.start_time = Some(Instant::now())

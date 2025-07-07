@@ -20,7 +20,7 @@ use crate::{
     win_data::{GameMod, RaceData, WinData},
 };
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::SoloRaceGame;
 
@@ -51,13 +51,14 @@ impl ScreenSoloRaceGameComponent {
     pub fn load_settings(&mut self) {
         self.start_time = None;
 
-        let (text_origin, number_words, seed, keep_seed) = {
+        let (text_origin, number_words, seed, keep_seed, path_source) = {
             let seed = self.shr_settings.borrow().game_settings.seed;
             let keep_seed = self.shr_settings.borrow().game_settings.keep_seed;
             let race_game_settings = &self.shr_settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
-            (text_origin, number_words, seed, keep_seed)
+            let path_source = race_game_settings.file_name.clone();
+            (text_origin, number_words, seed, keep_seed, path_source)
         };
 
         let seed = if !keep_seed || seed.is_none() {
@@ -70,7 +71,7 @@ impl ScreenSoloRaceGameComponent {
         };
 
         let offset = match text_origin {
-            TextOrigin::Text(_, OffsetText::Random) => {
+            TextOrigin::Text(OffsetText::Random) => {
                 let mut r = StdRng::seed_from_u64(seed);
                 Some(r.random())
             }
@@ -81,6 +82,7 @@ impl ScreenSoloRaceGameComponent {
             self.dispatcher_tx.clone(),
             self.screen,
             text_origin,
+            path_source,
             Some(number_words),
             offset,
             Some(TextStartEnd::Start),
@@ -124,7 +126,7 @@ impl Store for ScreenSoloRaceGameComponent {
             _ => {}
         }
         if let Some(text) = self.text_component.as_mut() {
-            text.update_screen_member(action);
+            text.update(action);
         }
         if let Some(text_component) = self.text_component.as_ref() {
             debug!("{}", text_component.is_done_correctly());

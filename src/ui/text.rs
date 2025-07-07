@@ -1,6 +1,5 @@
 use std::{
-    iter::{self},
-    time::Instant,
+    iter::{self}, path::Path, time::Instant
 };
 
 use async_deferred::Deferred;
@@ -138,12 +137,13 @@ enum AsyncTextSource {
 }
 impl AsyncTextSource {
     pub fn from_language(
-        name: String,
+        path_source: impl AsRef<Path>,
         dispatcher_tx: UnboundedSender<Action>,
         seed: Option<u64>,
     ) -> Self {
+        let path = path_source.as_ref().to_str().expect("to be a path with valid characters").to_string().clone();
         Self::Generator(Deferred::start_with_callback(
-            move || TextGenerator::from_language(name, seed),
+            move || TextGenerator::from_language(path, seed),
             move || {
                 dispatcher_tx
                     .send(Action::AsyncCachedRecievedData(None))
@@ -153,15 +153,16 @@ impl AsyncTextSource {
     }
 
     pub fn from_text(
-        name: String,
+        path_source: impl AsRef<Path>,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
         start: TextStartEnd,
     ) -> Self {
+        let path_source = path_source.as_ref().to_str().expect("to be a path with valid characters").to_string().clone();
         Self::StaticText(Deferred::start_with_callback(
             async move || {
-                let text = get_text(name).await;
+                let text = get_text(path_source).await;
                 let total_n_words = text
                     .as_ref()
                     .map(|text| text.split_whitespace().count())
@@ -221,19 +222,19 @@ impl AsyncTextSource {
                             .skip(real_offset)
                             .skip_while(|c| !c.ends_with('.'))
                             .skip(1)
-                            .take_while(|word| 
+                            .take_while(|word| {
                                 if counter_words > 1 {
                                     counter_words -= 1;
                                     true
-                                } else if counter_words == 1 && !word.ends_with('.'){
+                                } else if counter_words == 1 && !word.ends_with('.') {
                                     true
-                                } else if counter_words == 1 && word.ends_with('.'){
+                                } else if counter_words == 1 && word.ends_with('.') {
                                     counter_words -= 1;
                                     true
-                    
                                 } else {
                                     false
-                                })
+                                }
+                            })
                             .collect::<Vec<&str>>()
                             .join(" ")
                     }
@@ -320,6 +321,7 @@ pub struct TextWidget {
 impl TextWidget {
     fn new(
         origin: TextOrigin,
+        path_source: impl AsRef<Path>,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
@@ -327,21 +329,23 @@ impl TextWidget {
         seed: Option<u64>,
     ) -> Self {
         match origin {
-            TextOrigin::Generated(name) => {
-                Self::from_language(name, dispatcher_tx, number_words, seed)
+            TextOrigin::Generated => {
+                Self::from_language( path_source, dispatcher_tx, number_words, seed)
             }
-            TextOrigin::Text(name, _) => Self::from_text(name, dispatcher_tx, number_words, offset, text_start_end),
+            TextOrigin::Text(_) => {
+                Self::from_text(path_source, dispatcher_tx, number_words, offset, text_start_end)
+            }
         }
     }
 
     fn from_language(
-        name: String,
+        path_source: impl AsRef<Path>,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         seed: Option<u64>,
     ) -> Self {
         // let first_batch = 500;
-        let async_text_source = AsyncTextSource::from_language(name, dispatcher_tx, seed);
+        let async_text_source = AsyncTextSource::from_language(path_source, dispatcher_tx, seed);
         // let new_chars =
         //             .into_iter()
         //             .take(first_batch)
@@ -381,14 +385,14 @@ impl TextWidget {
     }
 
     fn from_text(
-        name: String,
+        path_source: impl AsRef<Path>,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<TextStartEnd>
+        text_start_end: Option<TextStartEnd>,
     ) -> Self {
         let async_text_source = AsyncTextSource::from_text(
-            name,
+            path_source,
             dispatcher_tx,
             number_words,
             offset,
@@ -752,6 +756,7 @@ impl TextWidgetComponent {
         dispatcher_tx: UnboundedSender<Action>,
         screen: Screen,
         origin: TextOrigin,
+        path_source: impl AsRef<Path>,
         number_words: Option<usize>,
         offset: Option<f64>,
         text_start_end: Option<TextStartEnd>,
@@ -762,7 +767,15 @@ impl TextWidgetComponent {
         TextWidgetComponent {
             screen,
             dispatcher_tx,
-            widget: TextWidget::new(origin, clone_dispatcher_tx, number_words, offset, text_start_end, seed),
+            widget: TextWidget::new(
+                origin,
+                path_source,
+                clone_dispatcher_tx,
+                number_words,
+                offset,
+                text_start_end,
+                seed,
+            ),
             is_active: true,
         }
     }

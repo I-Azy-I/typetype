@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 pub const PATH_SETTINGS: &str = "settings/";
@@ -17,8 +19,8 @@ pub struct GameSettings {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TextOrigin {
-    Generated(String),
-    Text(String, OffsetText),
+    Generated,
+    Text(OffsetText),
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -29,6 +31,7 @@ pub struct ClockGameSettings {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct RaceGameSettings {
     pub text_origin: TextOrigin,
+    pub file_name: PathBuf,
     pub number_words: usize,
 }
 
@@ -41,6 +44,6 @@ pub enum OffsetText {
 
 impl Default for TextOrigin {
     fn default() -> Self {
-        TextOrigin::Text("lotr.txt".to_string(), OffsetText::default())
+        TextOrigin::Text(OffsetText::default())
     }
 }

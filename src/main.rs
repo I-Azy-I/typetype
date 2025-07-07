@@ -5,6 +5,7 @@ use dispatcher::Dispatcher;
 mod app;
 use app::App;
 mod action;
+mod config;
 mod dispatcher;
 mod flux;
 mod settings;

@@ -168,7 +168,7 @@ pub trait ScreenMember {
     {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen() => self.activate(),
-            Action::ClosingScreen(screen) if screen == self.screen() => self.deactivate(),
+            Action::ClosingScreen(screen) if screen == self.screen() => self.activate(),
             _ => {}
         }
     }

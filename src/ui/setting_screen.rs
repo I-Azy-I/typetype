@@ -1,12 +1,17 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, path::{self, PathBuf}, rc::Rc};
 
+use async_deferred::Deferred;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
-    widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget},
 };
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{fs, sync::mpsc::UnboundedSender};
 
+use super::{
+    list::HorizontalList,
+    screens::{Screen, games::GameMod},
+};
 use crate::{
     action::Action,
     flux::SendAction,
@@ -14,10 +19,9 @@ use crate::{
     stores::Store,
     ui::screens::ScreenMember,
 };
-
-use super::{
-    list::HorizontalList,
-    screens::{Screen, games::GameMod},
+use crate::{
+    config::{PATH_LANGUAGES, PATH_TEXTS, DEFAULT_LANGUAGE, DEFAULT_TEXT},
+    ui::list::ScrollableList,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -52,10 +56,10 @@ enum GeneratingOption {
     Language,
 }
 impl GeneratingOption {
-    fn to_setting_param(self, name: String) -> TextOrigin {
+    fn to_setting_param(self) -> TextOrigin {
         match self {
-            GeneratingOption::Text => TextOrigin::Text(name, OffsetText::Random),
-            GeneratingOption::Language => TextOrigin::Generated(name),
+            GeneratingOption::Text => TextOrigin::Text(OffsetText::Random),
+            GeneratingOption::Language => TextOrigin::Generated,
         }
     }
 }
@@ -85,6 +89,35 @@ impl GeneratingOption {
         ["Text", "Language"]
     }
 }
+async fn get_list_file_in_folder(path: &str, first_value: Option<String>) -> Vec<String> {
+    let res = async {
+        let mut entries = fs::read_dir(path).await.ok()?;
+        let mut files = Vec::new();
+
+        while let Some(entry) = entries.next_entry().await.ok()? {
+            if entry.file_type().await.ok()?.is_file() {
+                files.push(entry.file_name().display().to_string());
+            }
+        }
+        
+        if let Some(first_value) = first_value {
+            let index = files.iter().position(|entry| *entry == first_value);
+            if let Some(index) = index {
+                files.remove(index);
+            }
+            files.sort();
+            if index.is_some() {
+                files.insert(0, first_value);
+            }
+        } else {
+            files.sort();
+        }
+        
+        Some(files)
+    }
+    .await;
+    res.unwrap_or_default()
+}
 
 #[derive(Debug)]
 pub struct SettingsSoloGameComponent {
@@ -92,12 +125,13 @@ pub struct SettingsSoloGameComponent {
     settings: Rc<RefCell<Settings>>,
     state_generator: GeneratingOption,
     state_source: usize,
-    texts: Vec<String>,
-    default_text: usize,
-    languages: Vec<String>,
+    texts: Deferred<Vec<String>>,
+    selected_text: ListState,
+    languages: Deferred<Vec<String>>,
+    selected_language: ListState,
     selected_part: SelectedPart,
     editing_part: SelectedPart,
-    default_language: usize,
+
     screen: Screen,
     game_mod: GameMod,
     is_active: bool,
@@ -109,10 +143,8 @@ impl SettingsSoloGameComponent {
         screen: Screen,
         game_mod: GameMod,
     ) -> Self {
-        let default_text = 0;
-        let default_language = 0;
-        let texts = Vec::new();
-        let languages = Vec::new();
+        let texts = Deferred::start(async || get_list_file_in_folder(PATH_TEXTS, Some(String::from(DEFAULT_TEXT))).await);
+        let languages = Deferred::start(async || get_list_file_in_folder(PATH_LANGUAGES, Some(String::from(DEFAULT_LANGUAGE))).await);
 
         SettingsSoloGameComponent {
             dispatcher_tx,
@@ -122,21 +154,16 @@ impl SettingsSoloGameComponent {
             state_source: 0,
             selected_part: SelectedPart::None,
             editing_part: SelectedPart::None,
-            default_language,
-            default_text,
             texts,
+            selected_text: ListState::default().with_selected(Some(0)),
             languages,
+            selected_language: ListState::default().with_selected(Some(0)),
             game_mod,
             is_active: false,
         }
     }
 
-    pub fn current_name_origin(&self) -> String {
-        match self.state_generator {
-            GeneratingOption::Text => "lotr.txt".to_string(),
-            GeneratingOption::Language => "english_1k.json".to_string(),
-        }
-    }
+ 
     pub fn select_default(&mut self) {
         self.selected_part = SelectedPart::Generator
     }
@@ -161,7 +188,7 @@ impl SettingsSoloGameComponent {
                     .race_game_settings
                     .text_origin = self
                     .state_generator
-                    .to_setting_param(self.current_name_origin())
+                    .to_setting_param()
             }
             GameMod::Clock => todo!(),
             GameMod::Infinite => todo!(),
@@ -178,11 +205,23 @@ impl SettingsSoloGameComponent {
                     .race_game_settings
                     .text_origin = self
                     .state_generator
-                    .to_setting_param(self.current_name_origin())
+                    .to_setting_param()
             }
             GameMod::Clock => todo!(),
             GameMod::Infinite => todo!(),
         }
+    }
+    fn select_new_source(&mut self, path: PathBuf) {
+        match self.game_mod {
+            GameMod::Race => self.settings.borrow_mut().game_settings.race_game_settings.file_name = path,
+            GameMod::Clock => todo!(),
+            GameMod::Infinite => todo!(),
+        }
+        
+    }
+
+    fn save_in_settings(&self) {
+        
     }
 
     pub fn is_editing(&self) -> bool {
@@ -191,6 +230,8 @@ impl SettingsSoloGameComponent {
     pub fn selected(&self) -> bool {
         !matches!(self.selected_part, SelectedPart::None)
     }
+
+
 }
 
 impl Store for SettingsSoloGameComponent {
@@ -199,6 +240,7 @@ impl Store for SettingsSoloGameComponent {
             return;
         }
         match action {
+            Action::EscPressed => {}
             Action::RightPressed => match self.editing_part {
                 SelectedPart::Generator => self.next_generator(),
                 SelectedPart::Source => self.editing_part = SelectedPart::None,
@@ -212,7 +254,26 @@ impl Store for SettingsSoloGameComponent {
 
             Action::UpPressed => match self.editing_part {
                 SelectedPart::Generator => self.editing_part = SelectedPart::None,
-                SelectedPart::Source => {}
+                SelectedPart::Source => {
+                    match self.state_generator {
+                        GeneratingOption::Text => {
+                            if let Some(text) = self.texts.try_get() {
+                                self.selected_text.select_previous();
+                                let new_text = text[self.selected_text.selected().unwrap()].clone();
+                                let path = PathBuf::from(PATH_TEXTS);
+                                self.select_new_source(path.join(new_text));
+                            }
+                        },
+                        GeneratingOption::Language => {
+                            if let Some(language) = self.languages.try_get() {
+                                self.selected_language.select_previous();
+                                let new_language = language[self.selected_language.selected().unwrap()].clone();
+                                let path = PathBuf::from(PATH_LANGUAGES);
+                                self.select_new_source(path.join(new_language));
+                            }
+                        },
+                    }
+                }
                 SelectedPart::None => self.selected_part = self.selected_part.previous(),
             },
             Action::DownPressed => match self.editing_part {
@@ -220,7 +281,29 @@ impl Store for SettingsSoloGameComponent {
                     self.editing_part = SelectedPart::None;
                     self.selected_part = self.selected_part.next()
                 }
-                SelectedPart::Source => {}
+                SelectedPart::Source => {
+                    match self.state_generator {
+                        GeneratingOption::Text => {
+                            if let Some(sources) = self.texts.try_get(){
+                                if self.selected_text.selected().unwrap() < sources.len() - 1{
+                                    self.selected_text.select_next();
+                                    let new_text = sources[self.selected_text.selected().unwrap()].clone();
+                                    let path = PathBuf::from(PATH_TEXTS);
+                                    self.select_new_source(path.join(new_text));
+                                } 
+                            }},
+                        GeneratingOption::Language => {
+                            if let Some(sources) = self.languages.try_get(){
+                                if self.selected_language.selected().unwrap() < sources.len() - 1{
+                                    self.selected_language.select_next();
+                                    let new_language = sources[self.selected_language.selected().unwrap()].clone();
+                                    let path = PathBuf::from(PATH_LANGUAGES);
+                                    self.select_new_source(path.join(new_language));
+                                } 
+                            }
+                        },
+                    }
+                }
                 SelectedPart::None => self.selected_part = self.selected_part.next(),
             },
             Action::EnterPressed if !matches!(self.editing_part, SelectedPart::None) => {
@@ -267,7 +350,7 @@ impl Widget for &SettingsSoloGameComponent {
         let block_generator = {
             let block = Block::default()
                 .border_type(BorderType::Rounded)
-                .title(" Text generation ")
+                .title("Text generation")
                 .borders(Borders::ALL);
             if matches!(self.editing_part, SelectedPart::Generator) {
                 block.border_style(Style::new().blue())
@@ -306,6 +389,34 @@ impl Widget for &SettingsSoloGameComponent {
                 block
             }
         };
-        block_src.render(layout[1], buf);
+
+        match self.state_generator {
+            GeneratingOption::Text => {
+                if let Some(sources) = self.texts.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout[1],
+                        buf,
+                        &mut self.selected_text.clone(),
+                    );
+                }
+            }
+            GeneratingOption::Language => {
+                if let Some(sources) = self.languages.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout[1],
+                        buf,
+                        &mut self.selected_language.clone(),
+                    );
+                }
+            }
+        }
     }
 }

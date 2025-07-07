@@ -1,11 +1,12 @@
+use std::path::Path;
+
+use crate::config::{PATH_LANGUAGES, PATH_TEXTS};
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::fs::{self, File};
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 
-const PATH_LANGUAGES: &str = "languages/";
-const PATH_TEXTS: &str = "texts/";
 #[derive(Debug, Copy, Clone)]
 enum ErrorTextGenerator {}
 
@@ -16,45 +17,47 @@ struct WordList {
     words: Vec<String>,
 }
 
-async fn get_language(name: String) -> Option<WordList> {
-    match File::open(format!("{PATH_LANGUAGES}{name}")).await {
+async fn get_language(path_source: impl AsRef<Path>) -> Option<WordList> {
+    let path_source = path_source.as_ref();
+    match File::open(path_source).await {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut contents = Vec::new();
             if let Err(e) = reader.read_to_end(&mut contents).await {
-                eprintln!("Failed to read file '{}': {}", name, e);
+                eprintln!("Failed to read file '{}': {}", path_source.to_string_lossy(), e);
                 return None;
             }
             match serde_json::from_slice(&contents) {
                 Ok(word_list) => Some(word_list),
                 Err(e) => {
-                    eprintln!("Failed to parse JSON for '{}': {}", name, e);
+                    eprintln!("Failed to parse JSON for '{}': {}", path_source.to_string_lossy(), e);
                     None
                 }
             }
         }
         Err(e) => {
-            eprintln!("Failed to open file '{}': {}", name, e);
+            eprintln!("Failed to open file '{}': {}", path_source.to_string_lossy(), e);
             None
         }
     }
 }
 
-pub async fn get_text(name: String) -> Option<String> {
-    match File::open(format!("{PATH_TEXTS}{name}")).await {
+pub async fn get_text(path_source: impl AsRef<Path>) -> Option<String> {
+    let path_source = path_source.as_ref();
+    match File::open(path_source).await {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut contents = String::new();
             match reader.read_to_string(&mut contents).await {
                 Ok(_) => Some(format_text(&contents)),
                 Err(e) => {
-                    eprintln!("Failed to read file '{}': {}", name, e);
+                    eprintln!("Failed to read file '{}': {}", path_source.to_string_lossy(), e);
                     None
                 }
             }
         }
         Err(e) => {
-            eprintln!("Failed to open file '{}': {}", name, e);
+            eprintln!("Failed to open file '{}': {}", path_source.to_string_lossy(), e);
             None
         }
     }
@@ -106,8 +109,8 @@ pub struct TextGenerator {
     seed: u64,
 }
 impl TextGenerator {
-    pub async fn from_language(name: String, seed: Option<u64>) -> Option<Self> {
-        let word_list = get_language(name).await?;
+    pub async fn from_language(path_source: impl AsRef<Path>, seed: Option<u64>) -> Option<Self> {
+        let word_list = get_language(path_source).await?;
         let (rng, seed) = if let Some(seed) = seed {
             (StdRng::seed_from_u64(seed), seed)
         } else {
