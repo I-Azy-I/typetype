@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_deferred::Deferred;
-use log::warn;
+use log::{debug, warn};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -488,10 +488,13 @@ impl TextWidget {
         assert!(self.lines.is_some());
         self.lines.as_ref().unwrap()[self.n_line].line[self.pos_in_line]
     }
+    pub fn is_cursor_correct(&self) -> bool {
+        matches!(self.cursor_state(), CharacterState::Typed)
+    }
     fn cursor_state(&self) -> CharacterState {
         self.cursor_char().state
     }
-    fn cursor_incorrect(&self) -> bool {
+    fn is_cursor_incorrect(&self) -> bool {
         matches!(self.cursor_state(), CharacterState::Incorrect)
     }
 
@@ -635,7 +638,7 @@ impl StatefulWidget for &mut TextWidget {
                 }
                 self.render_n_lines(area, buf, 5);
             }
-            TextWidgetState::Done => todo!(),
+            TextWidgetState::Done => {},
         }
 
         // for (i,line ) in self.lines[0..std::cmp::min(self.lines.len(), area.height as usize)].iter().enumerate(){
@@ -679,16 +682,15 @@ impl TextWidgetComponent {
 
     pub fn is_done(&self) -> bool {
         match self.widget.state {
-            TextWidgetState::InProgress => false,
             TextWidgetState::Done | TextWidgetState::DoneWithMistakes => true,
-            _ => panic!("Should never happen"),
+            _ => false,
         }
     }
     pub fn is_done_correctly(&self) -> bool {
         match self.widget.state {
-            TextWidgetState::InProgress | TextWidgetState::DoneWithMistakes => false,
             TextWidgetState::Done => true,
-            _ => panic!("Should never happen"),
+            _ => false,
+
         }
     }
 
@@ -743,8 +745,10 @@ impl TextWidgetComponent {
                         self.widget.update_time_word_done();
                     }
                 } else {
-                    self.widget.mistakes_counter += 1;
                     self.widget.make_incorrect();
+                    if !self.is_done() {
+                        self.widget.mistakes_counter += 1;
+                    }
                 };
                 if self.advance_cursor() {
                     self.widget.make_selected();
@@ -752,19 +756,22 @@ impl TextWidgetComponent {
                     self.widget.state = if self.widget.mistakes_counter > 0 {
                         TextWidgetState::DoneWithMistakes
                     } else {
-                        self.process_end_game();
+                        // self.process_end_game();
                         TextWidgetState::Done
                     };
                 }
             }
             TextWidgetState::DoneWithMistakes => {
-                if self.widget.cursor_incorrect() {
-                    self.widget.mistakes_counter += 1;
-                }
                 if self.widget.is_current_char(key) {
+                    debug!("a: {}", self.widget.is_cursor_incorrect() );
+                    if self.widget.is_cursor_incorrect() {
+                        self.widget.mistakes_counter -= 1;
+                    }
                     self.widget.make_typed();
                 } else {
-                    self.widget.mistakes_counter += 1;
+                    if self.widget.is_cursor_correct() {
+                        self.widget.mistakes_counter += 1;
+                    }
                     self.widget.make_incorrect();
                 };
                 self.widget.state = if self.widget.mistakes_counter > 0 {
@@ -780,21 +787,26 @@ impl TextWidgetComponent {
         if self.widget.lines.is_none() {
             return;
         }
-        self.widget.make_not_typed();
-        self.back_cursor();
-        if self.widget.cursor_incorrect() {
+        // with the last character the postion of the cursor is a bit special
+        // we check if the current character is wrong also for that
+        if self.widget.is_cursor_incorrect() {
             self.widget.mistakes_counter -= 1
         }
+
+
+        self.widget.make_not_typed();
+        self.back_cursor();
+         if self.widget.is_cursor_incorrect() {
+            self.widget.mistakes_counter -= 1
+        }
+        
         self.widget.make_selected();
         if !matches!(self.widget.state, TextWidgetState::InProgress) {
             self.widget.state = TextWidgetState::InProgress
         };
     }
 
-    fn process_end_game(&self) {
-        self.send(Action::AskChangeToScreen(Screen::DebugMenu))
-            .expect("to be able to change")
-    }
+
 
     pub fn wpm(&self) -> f32 {
         self.widget.wpm()
@@ -813,6 +825,7 @@ impl Store for TextWidgetComponent {
             }
             _ => {}
         }
+        debug!("Mistake counter: {}", self.widget.mistakes_counter)
     }
 }
 
