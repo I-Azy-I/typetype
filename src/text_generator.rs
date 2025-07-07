@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::config::{PATH_LANGUAGES, PATH_TEXTS};
+use log::error;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::fs::{self, File};
@@ -24,19 +25,31 @@ async fn get_language(path_source: impl AsRef<Path>) -> Option<WordList> {
             let mut reader = BufReader::new(file);
             let mut contents = Vec::new();
             if let Err(e) = reader.read_to_end(&mut contents).await {
-                eprintln!("Failed to read file '{}': {}", path_source.to_string_lossy(), e);
+                error!(
+                    "Failed to read file '{}': {}",
+                    path_source.to_string_lossy(),
+                    e
+                );
                 return None;
             }
             match serde_json::from_slice(&contents) {
                 Ok(word_list) => Some(word_list),
                 Err(e) => {
-                    eprintln!("Failed to parse JSON for '{}': {}", path_source.to_string_lossy(), e);
+                    error!(
+                        "Failed to parse JSON for '{}': {}",
+                        path_source.to_string_lossy(),
+                        e
+                    );
                     None
                 }
             }
         }
         Err(e) => {
-            eprintln!("Failed to open file '{}': {}", path_source.to_string_lossy(), e);
+            error!(
+                "Failed to open file '{}': {}",
+                path_source.to_string_lossy(),
+                e
+            );
             None
         }
     }
@@ -51,13 +64,21 @@ pub async fn get_text(path_source: impl AsRef<Path>) -> Option<String> {
             match reader.read_to_string(&mut contents).await {
                 Ok(_) => Some(format_text(&contents)),
                 Err(e) => {
-                    eprintln!("Failed to read file '{}': {}", path_source.to_string_lossy(), e);
+                    error!(
+                        "Failed to read file '{}': {}",
+                        path_source.to_string_lossy(),
+                        e
+                    );
                     None
                 }
             }
         }
         Err(e) => {
-            eprintln!("Failed to open file '{}': {}", path_source.to_string_lossy(), e);
+            error!(
+                "Failed to open file '{}': {}",
+                path_source.to_string_lossy(),
+                e
+            );
             None
         }
     }
@@ -170,22 +191,22 @@ async fn list_files_in_folder(path: String) -> Vec<String> {
     match fs::read_dir(&path).await {
         Ok(mut dir) => {
             while let Some(entry_result) = dir.next_entry().await.unwrap_or_else(|e| {
-                eprintln!("Failed to read directory entry: {e}");
+                error!("Failed to read directory entry: {e}");
                 None
             }) {
                 match entry_result.file_type().await {
                     Ok(file_type) if file_type.is_file() => {
                         match entry_result.file_name().into_string() {
                             Ok(name) => files.push(name),
-                            Err(os_str) => eprintln!("Invalid UTF-8 in filename: {:?}", os_str),
+                            Err(os_str) => error!("Invalid UTF-8 in filename: {:?}", os_str),
                         }
                     }
                     Ok(_) => {} // skip directories or other non-files
-                    Err(e) => eprintln!("Failed to get file type: {e}"),
+                    Err(e) => error!("Failed to get file type: {e}"),
                 }
             }
         }
-        Err(e) => eprintln!("Failed to open directory '{}': {}", path, e),
+        Err(e) => error!("Failed to open directory '{}': {}", path, e),
     }
 
     files

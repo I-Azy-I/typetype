@@ -19,7 +19,7 @@ use crate::{
     win_data::WinData,
 };
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::SoloInfiniteGame;
 
@@ -79,7 +79,7 @@ impl Store for ScreenSoloInfiniteGameComponent {
             _ => {}
         }
         if let Some(text) = self.text_component.as_mut() {
-            text.update_screen_member(action);
+            text.update(action);
         }
     }
 }

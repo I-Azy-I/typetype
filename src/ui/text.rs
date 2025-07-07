@@ -1,5 +1,7 @@
 use std::{
-    iter::{self}, path::Path, time::Instant
+    iter::{self},
+    path::Path,
+    time::Instant,
 };
 
 use async_deferred::Deferred;
@@ -23,10 +25,7 @@ use crate::{
     text_generator::{TextGenerator, get_text},
 };
 
-use super::{
-    centered_rect_with_length,
-    screens::{Screen, ScreenMember},
-};
+use super::{centered_rect_with_length, screens::Screen};
 const N_WORD_FOR_WPS: usize = 5;
 const LOREM_LIPSUM: &str =
     "Lorem ipsum dolor  sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut";
@@ -141,7 +140,12 @@ impl AsyncTextSource {
         dispatcher_tx: UnboundedSender<Action>,
         seed: Option<u64>,
     ) -> Self {
-        let path = path_source.as_ref().to_str().expect("to be a path with valid characters").to_string().clone();
+        let path = path_source
+            .as_ref()
+            .to_str()
+            .expect("to be a path with valid characters")
+            .to_string()
+            .clone();
         Self::Generator(Deferred::start_with_callback(
             move || TextGenerator::from_language(path, seed),
             move || {
@@ -159,7 +163,12 @@ impl AsyncTextSource {
         offset: Option<f64>,
         start: TextStartEnd,
     ) -> Self {
-        let path_source = path_source.as_ref().to_str().expect("to be a path with valid characters").to_string().clone();
+        let path_source = path_source
+            .as_ref()
+            .to_str()
+            .expect("to be a path with valid characters")
+            .to_string()
+            .clone();
         Self::StaticText(Deferred::start_with_callback(
             async move || {
                 let text = get_text(path_source).await;
@@ -330,11 +339,15 @@ impl TextWidget {
     ) -> Self {
         match origin {
             TextOrigin::Generated => {
-                Self::from_language( path_source, dispatcher_tx, number_words, seed)
+                Self::from_language(path_source, dispatcher_tx, number_words, seed)
             }
-            TextOrigin::Text(_) => {
-                Self::from_text(path_source, dispatcher_tx, number_words, offset, text_start_end)
-            }
+            TextOrigin::Text(_) => Self::from_text(
+                path_source,
+                dispatcher_tx,
+                number_words,
+                offset,
+                text_start_end,
+            ),
         }
     }
 
@@ -920,8 +933,8 @@ impl TextWidgetComponent {
 impl Store for TextWidgetComponent {
     fn update(&mut self, action: Action) {
         match action {
-            Action::KeyPressed(key) if self.is_active => self.key_pressed(key),
-            Action::BackspacePressed if self.is_active => self.backspace(),
+            Action::KeyPressed(key) => self.key_pressed(key),
+            Action::BackspacePressed => self.backspace(),
             Action::AsyncCachedRecievedData(_)
                 if self.widget.lines.is_none() && self.widget.async_text_source.is_available() =>
             {
@@ -933,19 +946,6 @@ impl Store for TextWidgetComponent {
     }
 }
 
-impl ScreenMember for TextWidgetComponent {
-    fn screen(&self) -> Screen {
-        self.screen
-    }
-
-    fn deactivate(&mut self) {
-        self.is_active = false
-    }
-
-    fn activate(&mut self) {
-        self.is_active = true
-    }
-}
 impl SendAction for TextWidgetComponent {
     fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
         self.dispatcher_tx.send(action)

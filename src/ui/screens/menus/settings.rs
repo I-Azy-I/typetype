@@ -13,7 +13,7 @@ use crate::{
     stores::Store,
     ui::{
         list::HorizontalList,
-        screens::{Screen, ScreenMember, games::GameMod},
+        screens::{Screen, games::GameMod},
         setting_screen::SettingsSoloGameComponent,
     },
 };
@@ -122,7 +122,7 @@ impl SoloRaceSettingScreen {
 
 impl Store for SoloRaceSettingScreen {
     fn update(&mut self, action: Action) {
-        self.basic_settings.update_screen_member(action);
+        self.basic_settings.update(action);
         if !self.basic_settings.selected() {
             if matches!(self.selected_part, RacePart::None) {
                 self.selected_part = RacePart::NumberWord

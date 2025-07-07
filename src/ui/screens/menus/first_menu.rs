@@ -3,7 +3,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::FirstMenu;
 
@@ -32,7 +32,7 @@ impl FirstMenuComponent {
 
 impl Store for FirstMenuComponent {
     fn update(&mut self, action: Action) {
-        self.list_store.update_screen_member(action);
+        self.list_store.update(action);
     }
 }
 

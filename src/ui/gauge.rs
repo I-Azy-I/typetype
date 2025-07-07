@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, flux::SendAction, stores::Store};
 
-use super::screens::{Screen, ScreenMember};
+use super::screens::Screen;
 
 pub type GaugeId = u16;
 
@@ -34,19 +34,6 @@ impl<'a> GaugeComponent<'a> {
     }
     pub fn get_widget(&self) -> &'a LineGauge {
         &self.widget
-    }
-}
-impl<'a> ScreenMember for GaugeComponent<'a> {
-    fn screen(&self) -> Screen {
-        self.screen
-    }
-
-    fn deactivate(&mut self) {
-        self.is_active = false
-    }
-
-    fn activate(&mut self) {
-        self.is_active = true
     }
 }
 

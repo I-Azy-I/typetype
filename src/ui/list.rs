@@ -1,4 +1,5 @@
 use crate::{action::Action, flux::SendAction, stores::Store};
+use log::error;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Style, Stylize},
@@ -7,10 +8,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{
-    centered_rect_with_length,
-    screens::{Screen, ScreenMember},
-};
+use super::{centered_rect_with_length, screens::Screen};
 
 #[derive(Debug)]
 struct Entry {
@@ -65,16 +63,15 @@ impl Store for MenuListComponent {
     fn update(&mut self, action: crate::action::Action) {
         match action {
             Action::DownPressed
-                if self.is_active
-                    && self
-                        .list_state
-                        .selected()
-                        .is_some_and(|value| value < self.entries.len() - 1) =>
+                if self
+                    .list_state
+                    .selected()
+                    .is_some_and(|value| value < self.entries.len() - 1) =>
             {
                 self.list_state.select_next()
             }
-            Action::UpPressed if self.is_active => self.list_state.select_previous(),
-            Action::EnterPressed if self.is_active => {
+            Action::UpPressed => self.list_state.select_previous(),
+            Action::EnterPressed => {
                 if let Some(selected) = self.list_state.selected() {
                     self.send(self.get_actions()[selected]).unwrap()
                 }
@@ -90,28 +87,11 @@ impl SendAction for MenuListComponent {
     }
 }
 
-impl ScreenMember for MenuListComponent {
-    fn screen(&self) -> super::screens::Screen {
-        self.screen
-    }
-
-    fn deactivate(&mut self) {
-        self.is_active = false
-    }
-
-    fn activate(&mut self) {
-        self.is_active = true
-    }
-}
-
 impl Widget for &MenuListComponent {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
-        if !self.is_active {
-            return;
-        }
         // let area = centered_rect(70, 70, area);
         let items = self.get_options();
         let list = List::new(items)
@@ -209,7 +189,7 @@ impl MenuMultipleListComponent {
                 }
             }
             (_, _) => {
-                println!("cursor not well initialized")
+                error!("cursor not well initialized")
             }
         }
     }
@@ -226,7 +206,7 @@ impl MenuMultipleListComponent {
                 }
             }
             (_, _) => {
-                println!("cursor not well initialized")
+                error!("cursor not well initialized")
             }
         }
     }
@@ -240,7 +220,7 @@ impl MenuMultipleListComponent {
                 self.entries[n_line].entries[n_entry % self.entries[n_line].entries.len()].action,
             ),
             (_, _) => {
-                println!("cursor not well initialized");
+                error!("cursor not well initialized");
                 None
             }
         }
@@ -261,20 +241,17 @@ impl Store for MenuMultipleListComponent {
     fn update(&mut self, action: crate::action::Action) {
         match action {
             Action::DownPressed
-                if self.is_active
-                    && self
-                        .list_state_line
-                        .selected()
-                        .is_some_and(|value| value < self.entries.len() - 1) =>
+                if self
+                    .list_state_line
+                    .selected()
+                    .is_some_and(|value| value < self.entries.len() - 1) =>
             {
                 self.list_state_line.select_next()
             }
-            Action::UpPressed if self.is_active => self.list_state_line.select_previous(),
-            Action::RightPressed if self.is_active => self.try_move_cursor_right(),
-            Action::LeftPressed if self.is_active => self.try_move_cursor_left(),
-            Action::EnterPressed if self.is_active => {
-                self.send(self.current_selected_action().unwrap()).unwrap()
-            }
+            Action::UpPressed => self.list_state_line.select_previous(),
+            Action::RightPressed => self.try_move_cursor_right(),
+            Action::LeftPressed => self.try_move_cursor_left(),
+            Action::EnterPressed => self.send(self.current_selected_action().unwrap()).unwrap(),
             _ => {}
         }
     }
@@ -286,28 +263,11 @@ impl SendAction for MenuMultipleListComponent {
     }
 }
 
-impl ScreenMember for MenuMultipleListComponent {
-    fn screen(&self) -> super::screens::Screen {
-        self.screen
-    }
-
-    fn deactivate(&mut self) {
-        self.is_active = false
-    }
-
-    fn activate(&mut self) {
-        self.is_active = true
-    }
-}
-
 impl Widget for &MenuMultipleListComponent {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
-        if !self.is_active {
-            return;
-        }
         let block = Block::bordered().title(self.title.clone());
         let inner_area_block = block.inner(area);
         block.render(area, buf);

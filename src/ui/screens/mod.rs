@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 use games::solo_race_game::ScreenSoloRaceGameComponent;
-use log::{error, warn};
+use log::{debug, error, warn};
 use menus::solo_games_menu::SoloGamesMenuComponent;
 use menus::{first_menu::FirstMenuComponent, settings::SoloRaceSettingScreen};
 use ratatui::widgets::Widget;
@@ -155,29 +155,6 @@ impl Store for ScreenRouterComponent {
 impl SendAction for ScreenRouterComponent {
     fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
         self.dispatcher_tx.send(action)
-    }
-}
-
-pub trait ScreenMember {
-    fn screen(&self) -> Screen;
-    fn deactivate(&mut self);
-    fn activate(&mut self);
-    fn handle_screen_activation(&mut self, action: Action)
-    where
-        Self: SendAction,
-    {
-        match action {
-            Action::OpeningScreen(screen) if screen == self.screen() => self.activate(),
-            Action::ClosingScreen(screen) if screen == self.screen() => self.activate(),
-            _ => {}
-        }
-    }
-    fn update_screen_member(&mut self, action: Action)
-    where
-        Self: SendAction + Store,
-    {
-        self.handle_screen_activation(action);
-        self.update(action);
     }
 }
 

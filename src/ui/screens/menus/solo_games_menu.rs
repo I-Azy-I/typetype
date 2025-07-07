@@ -7,7 +7,7 @@ use crate::{
     ui::list::{MenuMultipleListComponent, MutipleEntry},
 };
 
-use super::super::{super::*, Screen, ScreenMember};
+use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::SoloGamesMenu;
 
@@ -57,7 +57,7 @@ impl SoloGamesMenuComponent {
 
 impl Store for SoloGamesMenuComponent {
     fn update(&mut self, action: Action) {
-        self.list_store.update_screen_member(action);
+        self.list_store.update(action);
     }
 }
 
