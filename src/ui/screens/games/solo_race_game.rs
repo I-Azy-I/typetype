@@ -15,6 +15,7 @@ use crate::{
     stores::Store,
     ui::{
         clock::ClockWidget,
+        screens::IsScreen,
         text::{SettingsText, TextStartEnd, TextWidgetComponent},
     },
     win_data::{GameMod, RaceData, WinData},
@@ -25,7 +26,7 @@ use super::super::{super::*, Screen};
 const SCREEN: Screen = Screen::SoloRaceGame;
 
 #[derive(Debug)]
-pub struct ScreenSoloRaceGameComponent {
+pub struct ScreenSoloRaceGameScreen {
     screen: Screen,
     dispatcher_tx: UnboundedSender<Action>,
     text_component: Option<TextWidgetComponent>,
@@ -33,13 +34,13 @@ pub struct ScreenSoloRaceGameComponent {
     shr_settings: Rc<RefCell<Settings>>,
     shr_win_data: Rc<RefCell<WinData>>,
 }
-impl ScreenSoloRaceGameComponent {
+impl ScreenSoloRaceGameScreen {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
         shr_settings: Rc<RefCell<Settings>>,
         shr_win_data: Rc<RefCell<WinData>>,
     ) -> Self {
-        ScreenSoloRaceGameComponent {
+        ScreenSoloRaceGameScreen {
             screen: SCREEN,
             dispatcher_tx,
             shr_settings,
@@ -114,12 +115,9 @@ impl ScreenSoloRaceGameComponent {
     }
 }
 
-impl Store for ScreenSoloRaceGameComponent {
+impl Store for ScreenSoloRaceGameScreen {
     fn update(&mut self, action: Action) {
         match action {
-            Action::OpeningScreen(screen) if screen == self.screen => {
-                self.load_settings();
-            }
             Action::KeyPressed(_) if self.start_time.is_none() => {
                 self.start_time = Some(Instant::now())
             }
@@ -136,12 +134,12 @@ impl Store for ScreenSoloRaceGameComponent {
         }
     }
 }
-impl SendAction for ScreenSoloRaceGameComponent {
+impl SendAction for ScreenSoloRaceGameScreen {
     fn send(&self, action: Action) -> Result<(), SendError<Action>> {
         self.dispatcher_tx.send(action)
     }
 }
-impl Widget for &mut ScreenSoloRaceGameComponent {
+impl Widget for &mut ScreenSoloRaceGameScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
@@ -196,5 +194,11 @@ impl Widget for &mut ScreenSoloRaceGameComponent {
             text.widget
                 .render(text_area, buf, &mut SettingsText::ThreeLine);
         };
+    }
+}
+
+impl IsScreen for ScreenSoloRaceGameScreen {
+    fn open(&mut self) {
+        self.load_settings();
     }
 }

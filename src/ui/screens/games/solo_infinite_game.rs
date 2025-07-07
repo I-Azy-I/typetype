@@ -14,6 +14,7 @@ use crate::{
     stores::Store,
     ui::{
         clock::ClockWidget,
+        screens::IsScreen,
         text::{SettingsText, TextStartEnd, TextWidgetComponent},
     },
     win_data::WinData,
@@ -70,9 +71,9 @@ impl ScreenSoloInfiniteGameComponent {
 impl Store for ScreenSoloInfiniteGameComponent {
     fn update(&mut self, action: Action) {
         match action {
-            Action::OpeningScreen(screen) if screen == self.screen => {
-                self.load_settings();
-            }
+            // Action::AskOpenScreen(screen) if screen == self.screen => {
+            //     self.load_settings();
+            // }
             Action::KeyPressed(_) if self.start_time.is_none() => {
                 self.start_time = Some(Instant::now())
             }
@@ -136,3 +137,5 @@ impl Widget for &mut ScreenSoloInfiniteGameComponent {
         };
     }
 }
+
+impl IsScreen for ScreenSoloInfiniteGameComponent {}

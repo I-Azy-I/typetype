@@ -1,17 +1,23 @@
 use ratatui::widgets::{StatefulWidget, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, stores::Store, ui::list::MenuListComponent};
+use crate::{
+    action::Action,
+    flux::SendAction,
+    stores::Store,
+    ui::{list::MenuListComponent, screens::IsScreen},
+};
 
 use super::super::{super::*, Screen};
 
 const SCREEN: Screen = Screen::FirstMenu;
 
 #[derive(Debug)]
-pub struct FirstMenuComponent {
+pub struct FirstMenuScreen {
+    dispatcher_tx: UnboundedSender<Action>,
     list_store: MenuListComponent,
 }
-impl FirstMenuComponent {
+impl FirstMenuScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>) -> Self {
         let options = ["Solo", "Multi (in progress)", "Settings", "About"]
             .into_iter()
@@ -23,20 +29,28 @@ impl FirstMenuComponent {
             Action::None,
             Action::None,
         ];
-        let list_store =
-            MenuListComponent::new("Menu".to_string(), dispatcher_tx, options, actions, SCREEN);
+        let list_store = MenuListComponent::new(
+            "Menu".to_string(),
+            dispatcher_tx.clone(),
+            options,
+            actions,
+            SCREEN,
+        );
 
-        FirstMenuComponent { list_store }
+        FirstMenuScreen {
+            dispatcher_tx,
+            list_store,
+        }
     }
 }
 
-impl Store for FirstMenuComponent {
+impl Store for FirstMenuScreen {
     fn update(&mut self, action: Action) {
         self.list_store.update(action);
     }
 }
 
-impl Widget for &FirstMenuComponent {
+impl Widget for &FirstMenuScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
@@ -45,3 +59,10 @@ impl Widget for &FirstMenuComponent {
         self.list_store.render(area, buf);
     }
 }
+
+impl SendAction for FirstMenuScreen {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+impl IsScreen for FirstMenuScreen {}

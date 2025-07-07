@@ -9,11 +9,12 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
+    flux::SendAction,
     settings::Settings,
     stores::Store,
     ui::{
         list::HorizontalList,
-        screens::{Screen, games::GameMod},
+        screens::{IsScreen, Screen, games::GameMod},
         setting_screen::SettingsSoloGameComponent,
     },
 };
@@ -83,6 +84,7 @@ enum RacePart {
 }
 #[derive(Debug)]
 pub struct SoloRaceSettingScreen {
+    dispatcher_tx: UnboundedSender<Action>,
     settings: Rc<RefCell<Settings>>,
     basic_settings: SettingsSoloGameComponent,
     chosen_length: NumberWord,
@@ -100,6 +102,7 @@ impl SoloRaceSettingScreen {
         );
         basic_settings.select_default();
         SoloRaceSettingScreen {
+            dispatcher_tx,
             settings,
             basic_settings,
             chosen_length: NumberWord::default(),
@@ -196,3 +199,10 @@ impl Widget for &SoloRaceSettingScreen {
         list.render(layout[0], buf, &mut self.chosen_length.state());
     }
 }
+impl SendAction for SoloRaceSettingScreen {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+
+impl IsScreen for SoloRaceSettingScreen {}

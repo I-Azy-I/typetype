@@ -1,9 +1,9 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use games::solo_race_game::ScreenSoloRaceGameComponent;
+use games::solo_race_game::ScreenSoloRaceGameScreen;
 use log::{debug, error, warn};
-use menus::solo_games_menu::SoloGamesMenuComponent;
-use menus::{first_menu::FirstMenuComponent, settings::SoloRaceSettingScreen};
+use menus::solo_games_menu::SoloGamesMenuScreen;
+use menus::{first_menu::FirstMenuScreen, settings::SoloRaceSettingScreen};
 use ratatui::widgets::Widget;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -11,8 +11,8 @@ pub mod games;
 mod menus;
 
 use crate::ui::screens::games::solo_infinite_game::ScreenSoloInfiniteGameComponent;
-use crate::ui::screens::menus::debug_menu::DebugMenuComponent;
-use crate::ui::screens::menus::win_menu::{self, WinMenuComponent};
+use crate::ui::screens::menus::debug_menu::DebugMenuScreen;
+use crate::ui::screens::menus::win_menu::{self, WinMenuScreen};
 use crate::win_data::WinData;
 use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
 
@@ -43,30 +43,32 @@ impl Screen {
     }
 }
 
+pub trait Test: IsScreen + Widget + Debug {}
 #[derive(Debug)]
 pub struct ScreenRouterComponent {
     dispatcher_tx: UnboundedSender<Action>,
     pub current_sceen_kind: Screen,
     settings: Rc<RefCell<Settings>>,
     // screens
-    first_menu: FirstMenuComponent,
-    solo_game_menu: SoloGamesMenuComponent,
-    solo_speed_game: ScreenSoloRaceGameComponent,
+    first_menu: FirstMenuScreen,
+    solo_game_menu: SoloGamesMenuScreen,
+    solo_speed_game: ScreenSoloRaceGameScreen,
     setting_solo_race: SoloRaceSettingScreen,
     solo_infinte_game: ScreenSoloInfiniteGameComponent,
 
-    win_menu: WinMenuComponent,
-    debug_menu: DebugMenuComponent,
+    win_menu: WinMenuScreen,
+    debug_menu: DebugMenuScreen,
 }
+
 impl ScreenRouterComponent {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
         let data_end_game = Rc::new(RefCell::new(WinData::default()));
 
-        let debug_menu = DebugMenuComponent::new();
-        let first_menu = FirstMenuComponent::new(dispatcher_tx.clone());
-        let solo_game_menu = SoloGamesMenuComponent::new(dispatcher_tx.clone());
+        let debug_menu = DebugMenuScreen::new(dispatcher_tx.clone());
+        let first_menu = FirstMenuScreen::new(dispatcher_tx.clone());
+        let solo_game_menu = SoloGamesMenuScreen::new(dispatcher_tx.clone());
         // solo speed
-        let solo_speed_game = ScreenSoloRaceGameComponent::new(
+        let solo_speed_game = ScreenSoloRaceGameScreen::new(
             dispatcher_tx.clone(),
             settings.clone(),
             data_end_game.clone(),
@@ -79,7 +81,7 @@ impl ScreenRouterComponent {
             data_end_game.clone(),
         );
 
-        let win_menu = WinMenuComponent::new(
+        let win_menu = WinMenuScreen::new(
             dispatcher_tx.clone(),
             data_end_game.clone(),
             settings.clone(),
@@ -87,7 +89,7 @@ impl ScreenRouterComponent {
         ScreenRouterComponent {
             dispatcher_tx,
             settings,
-            current_sceen_kind: Screen::default(),
+            current_sceen_kind: STARTING_SCREEN,
             first_menu,
             solo_game_menu,
             solo_speed_game,
@@ -99,37 +101,35 @@ impl ScreenRouterComponent {
         }
     }
 
-    fn close_current(&self) {
-        self.send(Action::ClosingScreen(self.current_sceen_kind))
-            .unwrap()
-    }
-
-    fn change_screen(&mut self, action: Action) {
+    fn change_screen_protocol(&mut self, action: Action) {
         match action {
             Action::AskChangeToScreen(asked_screen) if self.current_sceen_kind != asked_screen => {
-                self.close_current();
-                self.current_sceen_kind = asked_screen;
-                self.send(Action::OpeningScreen(asked_screen)).unwrap()
+                self.send(Action::AskCloseScreen(asked_screen)).unwrap();
             }
+            Action::ScreenClosed(asked_screen) => {
+                self.current_sceen_kind = asked_screen;
+                self.send(Action::AskOpenScreen).unwrap()
+            }
+
             Action::AskChangeToScreen(asked_screen) => {
                 warn!(
                     "Try to change screen {:?} with {:?} which are the same, action is ignored",
                     self.current_sceen_kind, asked_screen
                 );
             }
-            _ => panic!("It's not a action to change a screen"),
+            _ => {}
         }
     }
 
     fn updates_screens(&mut self, action: Action) {
         match self.current_sceen_kind {
-            Screen::FirstMenu => self.first_menu.update(action),
-            Screen::SoloGamesMenu => self.solo_game_menu.update(action),
-            Screen::SoloRaceGame => self.solo_speed_game.update(action),
-            Screen::SoloRaceSettingScreen => self.setting_solo_race.update(action),
-            Screen::SoloInfiniteGame => self.solo_infinte_game.update(action),
-            Screen::DebugMenu => self.debug_menu.update(action),
-            Screen::WinMenu => self.win_menu.update(action),
+            Screen::FirstMenu => self.first_menu.update_screen(action),
+            Screen::SoloGamesMenu => self.solo_game_menu.update_screen(action),
+            Screen::SoloRaceGame => self.solo_speed_game.update_screen(action),
+            Screen::SoloRaceSettingScreen => self.setting_solo_race.update_screen(action),
+            Screen::SoloInfiniteGame => self.solo_infinte_game.update_screen(action),
+            Screen::DebugMenu => self.debug_menu.update_screen(action),
+            Screen::WinMenu => self.win_menu.update_screen(action),
         }
     }
 }
@@ -145,10 +145,10 @@ impl Store for ScreenRouterComponent {
                     self.send(Action::Exit).unwrap()
                 }
             }
-            Action::StartingApp => self.send(Action::OpeningScreen(STARTING_SCREEN)).unwrap(),
-            Action::AskChangeToScreen(_) => self.change_screen(action),
+            Action::StartingApp => self.send(Action::AskOpenScreen).unwrap(),
             _ => {}
         }
+        self.change_screen_protocol(action);
     }
 }
 
@@ -171,6 +171,23 @@ impl Widget for &mut ScreenRouterComponent {
             Screen::SoloInfiniteGame => self.solo_infinte_game.render(area, buf),
             Screen::DebugMenu => self.debug_menu.render(area, buf),
             Screen::WinMenu => self.win_menu.render(area, buf),
+        }
+    }
+}
+
+pub trait IsScreen: Store + SendAction {
+    fn open(&mut self) {}
+    fn close(&mut self) {}
+    fn update_screen(&mut self, action: Action) {
+        self.update(action);
+        match action {
+            Action::AskCloseScreen(asked_screen) => {
+                self.close();
+                self.send(Action::ScreenClosed(asked_screen))
+                    .expect("to notify that the screen is closed")
+            }
+            Action::AskOpenScreen => self.open(),
+            _ => {}
         }
     }
 }

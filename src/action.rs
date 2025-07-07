@@ -5,8 +5,9 @@ pub enum Action {
     StartingApp,
 
     AskChangeToScreen(Screen),
-    OpeningScreen(Screen),
-    ClosingScreen(Screen),
+    AskOpenScreen,
+    AskCloseScreen(Screen),
+    ScreenClosed(Screen),
 
     KeyPressed(char),
     BackspacePressed,

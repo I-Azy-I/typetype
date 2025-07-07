@@ -12,7 +12,7 @@ use crate::{
     flux::SendAction,
     settings::Settings,
     stores::Store,
-    ui::list::HorizontalList,
+    ui::{list::HorizontalList, screens::IsScreen},
     win_data::{RaceData, WinData},
 };
 
@@ -53,19 +53,19 @@ impl SelectedOption {
 }
 
 #[derive(Debug)]
-pub struct WinMenuComponent {
+pub struct WinMenuScreen {
     shr_win_data: Rc<RefCell<WinData>>,
     shr_settings: Rc<RefCell<Settings>>,
     dispatcher_tx: UnboundedSender<Action>,
     choice_state: SelectedOption,
 }
-impl WinMenuComponent {
+impl WinMenuScreen {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
         shr_win_data: Rc<RefCell<WinData>>,
         shr_settings: Rc<RefCell<Settings>>,
     ) -> Self {
-        WinMenuComponent {
+        WinMenuScreen {
             shr_win_data,
             shr_settings,
             dispatcher_tx,
@@ -119,10 +119,9 @@ impl WinMenuComponent {
     }
 }
 
-impl Store for WinMenuComponent {
+impl Store for WinMenuScreen {
     fn update(&mut self, action: Action) {
         match action {
-            Action::OpeningScreen(sceen) if matches!(sceen, SCREEN) => self.default(),
             Action::RightPressed => self.choice_state = self.choice_state.next(),
             Action::LeftPressed => self.choice_state = self.choice_state.previous(),
             Action::EnterPressed => self.option_selected(),
@@ -131,12 +130,12 @@ impl Store for WinMenuComponent {
     }
 }
 
-impl SendAction for WinMenuComponent {
+impl SendAction for WinMenuScreen {
     fn send(&self, action: Action) -> Result<(), SendError<Action>> {
         self.dispatcher_tx.send(action)
     }
 }
-impl Widget for &WinMenuComponent {
+impl Widget for &WinMenuScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
@@ -180,3 +179,5 @@ impl Widget for &WinMenuComponent {
         );
     }
 }
+
+impl IsScreen for WinMenuScreen {}
