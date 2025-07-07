@@ -31,7 +31,7 @@ pub struct ClockGameSettings {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct RaceGameSettings {
     pub text_origin: TextOrigin,
-    pub file_name: PathBuf,
+    pub filename: String,
     pub number_words: usize,
 }
 

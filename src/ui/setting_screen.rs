@@ -127,23 +127,18 @@ pub struct SettingsSoloGameComponent {
     dispatcher_tx: UnboundedSender<Action>,
     settings: Rc<RefCell<Settings>>,
     state_generator: GeneratingOption,
-    state_source: usize,
     texts: Deferred<Vec<String>>,
     selected_text: ListState,
     languages: Deferred<Vec<String>>,
     selected_language: ListState,
     selected_part: SelectedPart,
     editing_part: SelectedPart,
-
-    screen: Screen,
     game_mod: GameMod,
-    is_active: bool,
 }
 impl SettingsSoloGameComponent {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
         settings: Rc<RefCell<Settings>>,
-        screen: Screen,
         game_mod: GameMod,
     ) -> Self {
         let texts = Deferred::start(async || {
@@ -155,10 +150,8 @@ impl SettingsSoloGameComponent {
 
         SettingsSoloGameComponent {
             dispatcher_tx,
-            screen,
             settings,
             state_generator: GeneratingOption::default(),
-            state_source: 0,
             selected_part: SelectedPart::None,
             editing_part: SelectedPart::None,
             texts,
@@ -166,7 +159,6 @@ impl SettingsSoloGameComponent {
             languages,
             selected_language: ListState::default().with_selected(Some(0)),
             game_mod,
-            is_active: false,
         }
     }
 
@@ -186,48 +178,50 @@ impl SettingsSoloGameComponent {
 
     pub fn next_generator(&mut self) {
         self.state_generator = self.state_generator.next();
-        match self.game_mod {
-            GameMod::Race => {
-                self.settings
-                    .borrow_mut()
-                    .game_settings
-                    .race_game_settings
-                    .text_origin = self.state_generator.to_setting_param()
-            }
-            GameMod::Clock => todo!(),
-            GameMod::Infinite => todo!(),
-        }
     }
 
     pub fn previous_generator(&mut self) {
         self.state_generator = self.state_generator.previous();
+    }
+    // fn select_new_source(&mut self, filename: String) {
+    //     match self.game_mod {
+    //         GameMod::Race => {
+    //             self.settings
+    //                 .borrow_mut()
+    //                 .game_settings
+    //                 .race_game_settings
+    //                 .filename = filename
+    //         }
+    //         GameMod::Clock => todo!(),
+    //         GameMod::Infinite => todo!(),
+    //     }
+    // }
+    fn get_current_filename(&self) -> Option<String> {
+        match self.state_generator {
+            GeneratingOption::Text => self
+                .texts
+                .try_get()
+                .map(|texts| texts[self.selected_text.selected().unwrap()].clone()),
+            GeneratingOption::Language => self
+                .languages
+                .try_get()
+                .map(|languages| languages[self.selected_text.selected().unwrap()].clone()),
+        }
+    }
+    pub fn save_in_settings(&self) {
+        let mut settings = self.settings.borrow_mut();
         match self.game_mod {
             GameMod::Race => {
-                self.settings
-                    .borrow_mut()
-                    .game_settings
-                    .race_game_settings
-                    .text_origin = self.state_generator.to_setting_param()
+                let race_game_settings = &mut settings.game_settings.race_game_settings;
+                race_game_settings.text_origin = self.state_generator.to_setting_param();
+                if let Some(filename) = self.get_current_filename() {
+                    race_game_settings.filename = filename
+                }
             }
             GameMod::Clock => todo!(),
             GameMod::Infinite => todo!(),
         }
     }
-    fn select_new_source(&mut self, path: PathBuf) {
-        match self.game_mod {
-            GameMod::Race => {
-                self.settings
-                    .borrow_mut()
-                    .game_settings
-                    .race_game_settings
-                    .file_name = path
-            }
-            GameMod::Clock => todo!(),
-            GameMod::Infinite => todo!(),
-        }
-    }
-
-    fn save_in_settings(&self) {}
 
     pub fn is_editing(&self) -> bool {
         !matches!(self.editing_part, SelectedPart::None)
@@ -240,7 +234,6 @@ impl SettingsSoloGameComponent {
 impl Store for SettingsSoloGameComponent {
     fn update(&mut self, action: Action) {
         match action {
-            Action::EscPressed => {}
             Action::RightPressed => match self.editing_part {
                 SelectedPart::Generator => self.next_generator(),
                 SelectedPart::Source => self.editing_part = SelectedPart::None,
@@ -256,20 +249,13 @@ impl Store for SettingsSoloGameComponent {
                 SelectedPart::Generator => self.editing_part = SelectedPart::None,
                 SelectedPart::Source => match self.state_generator {
                     GeneratingOption::Text => {
-                        if let Some(text) = self.texts.try_get() {
-                            self.selected_text.select_previous();
-                            let new_text = text[self.selected_text.selected().unwrap()].clone();
-                            let path = PathBuf::from(PATH_TEXTS);
-                            self.select_new_source(path.join(new_text));
+                        if self.texts.is_complete() {
+                            self.selected_text.select_previous()
                         }
                     }
                     GeneratingOption::Language => {
-                        if let Some(language) = self.languages.try_get() {
+                        if self.languages.is_complete() {
                             self.selected_language.select_previous();
-                            let new_language =
-                                language[self.selected_language.selected().unwrap()].clone();
-                            let path = PathBuf::from(PATH_LANGUAGES);
-                            self.select_new_source(path.join(new_language));
                         }
                     }
                 },
@@ -285,10 +271,6 @@ impl Store for SettingsSoloGameComponent {
                         if let Some(sources) = self.texts.try_get() {
                             if self.selected_text.selected().unwrap() < sources.len() - 1 {
                                 self.selected_text.select_next();
-                                let new_text =
-                                    sources[self.selected_text.selected().unwrap()].clone();
-                                let path = PathBuf::from(PATH_TEXTS);
-                                self.select_new_source(path.join(new_text));
                             }
                         }
                     }
@@ -296,10 +278,6 @@ impl Store for SettingsSoloGameComponent {
                         if let Some(sources) = self.languages.try_get() {
                             if self.selected_language.selected().unwrap() < sources.len() - 1 {
                                 self.selected_language.select_next();
-                                let new_language =
-                                    sources[self.selected_language.selected().unwrap()].clone();
-                                let path = PathBuf::from(PATH_LANGUAGES);
-                                self.select_new_source(path.join(new_language));
                             }
                         }
                     }

@@ -1,10 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Instant;
 use std::{io, time::Duration};
 
+use log::debug;
 use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
+use crate::config::MILISECONDS_PER_FRAME;
 use crate::settings::Settings;
 use crate::stores::Store;
 use crate::{action::Action, ui::screens::ScreenRouterComponent};
@@ -21,7 +24,7 @@ pub struct AppStore {
     dispatcher_tx: UnboundedSender<Action>,
     exit: bool,
     screen_router: ScreenRouterComponent,
-    settings: Rc<RefCell<Settings>>,
+    time_last_frame: Instant
 }
 impl AppStore {
     fn new(
@@ -35,15 +38,16 @@ impl AppStore {
                 action_rx,
                 dispatcher_tx,
                 screen_router,
-                settings,
                 exit: false,
+                time_last_frame: Instant::now()
             },
             action_tx,
         )
     }
     async fn update(&mut self) {
         // Set up a timeout of 10ms
-        let timeout = tokio::time::sleep(Duration::from_millis(10));
+        let duration = Instant::now() - self.time_last_frame;
+        let timeout = tokio::time::sleep(Duration::from_millis(MILISECONDS_PER_FRAME).checked_sub(duration).unwrap_or_default());
         tokio::pin!(timeout);
 
         // Keep processing actions until timeout
@@ -52,7 +56,7 @@ impl AppStore {
             // let action = self.action_rx.recv().await.unwrap();
             // println!("action recieved");
             // self.text_store.update(action);
-
+            
             tokio::select! {
                 // Try to receive more actions (will not block if channel is empty)
                 biased;
@@ -100,6 +104,7 @@ impl App {
             .unwrap();
         while !self.app_store.exit {
             terminal.draw(|frame| self.draw(frame))?;
+            self.app_store.time_last_frame = Instant::now();
             self.app_store.update().await;
         }
         Ok(())

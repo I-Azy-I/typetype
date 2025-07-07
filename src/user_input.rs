@@ -2,6 +2,7 @@ use std::io;
 
 use crossterm::event::{Event as CrosstermEvent, KeyEvent};
 use futures::{FutureExt, StreamExt};
+use log::debug;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -16,6 +17,7 @@ impl UserInput {
         let mut reader = crossterm::event::EventStream::new();
         use futures::pin_mut;
         loop {
+            debug!("intput revieved");
             tokio::task::yield_now().await;
             let crossterm_event = reader.next().fuse();
             pin_mut!(crossterm_event);

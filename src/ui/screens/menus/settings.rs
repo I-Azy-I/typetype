@@ -1,5 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
+use log::debug;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
@@ -61,7 +62,7 @@ impl NumberWord {
         };
         ListState::default().with_selected(Some(value))
     }
-    fn value(self) -> u32 {
+    fn value(self) -> usize {
         use NumberWord::*;
         match self {
             W10 => 10,
@@ -97,7 +98,6 @@ impl SoloRaceSettingScreen {
         let mut basic_settings = SettingsSoloGameComponent::new(
             dispatcher_tx.clone(),
             settings.clone(),
-            Screen::SoloRaceSettingScreen,
             GameMod::Race,
         );
         basic_settings.select_default();
@@ -120,6 +120,12 @@ impl SoloRaceSettingScreen {
         self.chosen_length = self.chosen_length.previous();
         let mut settings = self.settings.borrow_mut();
         settings.game_settings.race_game_settings.number_words = self.chosen_length.value() as usize
+    }
+
+     fn save_in_settings(&self) {
+        self.basic_settings.save_in_settings();
+        let settings_race = &mut self.settings.borrow_mut().game_settings.race_game_settings;
+        settings_race.number_words = self.chosen_length.value();
     }
 }
 
@@ -205,4 +211,10 @@ impl SendAction for SoloRaceSettingScreen {
     }
 }
 
-impl IsScreen for SoloRaceSettingScreen {}
+impl IsScreen for SoloRaceSettingScreen {
+    fn close(&mut self) {
+        debug!("closed");
+        self.save_in_settings();
+        debug!("settings: {:#?}", self.settings.borrow())
+    }
+}

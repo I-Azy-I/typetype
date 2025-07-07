@@ -61,6 +61,7 @@ impl SoloGamesMenuScreen {
             list_store,
         }
     }
+   
 }
 
 impl Store for SoloGamesMenuScreen {

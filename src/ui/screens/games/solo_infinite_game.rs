@@ -59,7 +59,7 @@ impl ScreenSoloInfiniteGameComponent {
             self.dispatcher_tx.clone(),
             self.screen,
             text_origin,
-            "",
+            String::from(""),
             Some(number_words),
             None,
             Some(TextStartEnd::Start),

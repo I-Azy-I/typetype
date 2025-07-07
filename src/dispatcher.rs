@@ -1,3 +1,4 @@
+use log::debug;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::action::Action;
@@ -24,6 +25,7 @@ impl Dispatcher {
 
     pub async fn dispatch(mut self) {
         loop {
+            debug!("dispatching");
             //tokio::task::yield_now().await;
             let action = self
                 .action_rx

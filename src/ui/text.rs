@@ -1,6 +1,6 @@
 use std::{
     iter::{self},
-    path::Path,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -18,11 +18,7 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    action::Action,
-    flux::SendAction,
-    settings::{OffsetText, TextOrigin},
-    stores::Store,
-    text_generator::{TextGenerator, get_text},
+    action::Action, config::{PATH_LANGUAGES, PATH_TEXTS}, flux::SendAction, settings::{OffsetText, TextOrigin}, stores::Store, text_generator::{get_text, TextGenerator}
 };
 
 use super::{centered_rect_with_length, screens::Screen};
@@ -330,7 +326,7 @@ pub struct TextWidget {
 impl TextWidget {
     fn new(
         origin: TextOrigin,
-        path_source: impl AsRef<Path>,
+        filename: String,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
@@ -339,15 +335,20 @@ impl TextWidget {
     ) -> Self {
         match origin {
             TextOrigin::Generated => {
+                let dir_path = PathBuf::from(PATH_LANGUAGES);
+                let path_source = dir_path.join(filename);
                 Self::from_language(path_source, dispatcher_tx, number_words, seed)
             }
-            TextOrigin::Text(_) => Self::from_text(
+            TextOrigin::Text(_) => {
+                let dir_path = PathBuf::from(PATH_TEXTS);
+                let path_source = dir_path.join(filename);
+                Self::from_text(
                 path_source,
                 dispatcher_tx,
                 number_words,
                 offset,
                 text_start_end,
-            ),
+            )},
         }
     }
 
@@ -769,7 +770,7 @@ impl TextWidgetComponent {
         dispatcher_tx: UnboundedSender<Action>,
         screen: Screen,
         origin: TextOrigin,
-        path_source: impl AsRef<Path>,
+        filename: String,
         number_words: Option<usize>,
         offset: Option<f64>,
         text_start_end: Option<TextStartEnd>,
@@ -782,7 +783,7 @@ impl TextWidgetComponent {
             dispatcher_tx,
             widget: TextWidget::new(
                 origin,
-                path_source,
+                filename,
                 clone_dispatcher_tx,
                 number_words,
                 offset,

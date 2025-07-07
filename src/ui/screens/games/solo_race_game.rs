@@ -58,7 +58,7 @@ impl ScreenSoloRaceGameScreen {
             let race_game_settings = &self.shr_settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
-            let path_source = race_game_settings.file_name.clone();
+            let path_source = race_game_settings.filename.clone();
             (text_origin, number_words, seed, keep_seed, path_source)
         };
 
