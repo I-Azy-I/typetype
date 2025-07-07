@@ -4,10 +4,11 @@ use std::{
 };
 
 use async_deferred::Deferred;
+use futures::stream::Skip;
 use log::{debug, warn};
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Offset, Rect},
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{StatefulWidget, Widget},
@@ -18,7 +19,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::TextOrigin,
+    settings::{OffsetText, TextOrigin},
     stores::Store,
     text_generator::{TextGenerator, get_text},
 };
@@ -120,15 +121,29 @@ enum TextWidgetState {
     Done,
 }
 
+#[derive(Default)]
+pub enum TextStartEnd {
+    #[default]
+    Any,
+    // start at the beginning of a sentence
+    Start,
+    // start at the beginning and end at the end of a sentence
+    StartEnd,
+}
+
 #[derive(Debug)]
 enum AsyncTextSource {
     StaticText(Deferred<Option<String>>),
     Generator(Deferred<Option<TextGenerator>>),
 }
 impl AsyncTextSource {
-    pub fn from_language(name: String, dispatcher_tx: UnboundedSender<Action>) -> Self {
+    pub fn from_language(
+        name: String,
+        dispatcher_tx: UnboundedSender<Action>,
+        seed: Option<u64>,
+    ) -> Self {
         Self::Generator(Deferred::start_with_callback(
-            move || TextGenerator::from_language(name, None),
+            move || TextGenerator::from_language(name, seed),
             move || {
                 dispatcher_tx
                     .send(Action::AsyncCachedRecievedData(None))
@@ -136,26 +151,92 @@ impl AsyncTextSource {
             },
         ))
     }
+
     pub fn from_text(
         name: String,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<f64>,
+        start: TextStartEnd,
     ) -> Self {
         Self::StaticText(Deferred::start_with_callback(
             async move || {
-                get_text(name).await.map(|text| match number_words {
-                    None => text
+                let text = get_text(name).await;
+                let total_n_words = text
+                    .as_ref()
+                    .map(|text| text.split_whitespace().count())
+                    .unwrap_or(0);
+
+                let real_offset = (total_n_words as f64 * offset.unwrap_or(0.0)) as usize;
+                text.map(|text| match (number_words, start) {
+                    (None, TextStartEnd::Any) => text
                         .split_whitespace()
-                        .skip(offset.unwrap_or(0))
+                        .skip(real_offset)
                         .collect::<Vec<&str>>()
                         .join(" "),
-                    Some(n_words) => text
+                    (None, _) => text
                         .split_whitespace()
-                        .skip(offset.unwrap_or(0))
-                        .take(n_words)
+                        .skip(real_offset)
+                        .skip_while(|c| !c.ends_with('.'))
+                        .skip(1)
                         .collect::<Vec<&str>>()
                         .join(" "),
+                    (Some(n_words), TextStartEnd::Any) => {
+                        let max_offset = if n_words >= total_n_words {
+                            0
+                        } else {
+                            total_n_words - n_words
+                        };
+                        let real_offset = std::cmp::min(max_offset, real_offset);
+                        text.split_whitespace()
+                            .skip(real_offset)
+                            .take(n_words)
+                            .collect::<Vec<&str>>()
+                            .join(" ")
+                    }
+                    (Some(n_words), TextStartEnd::Start) => {
+                        let max_offset = if n_words >= total_n_words {
+                            0
+                        } else {
+                            total_n_words - n_words
+                        };
+                        let real_offset = std::cmp::min(max_offset, real_offset);
+                        text.split_whitespace()
+                            .skip(real_offset)
+                            .skip_while(|c| !c.ends_with('.'))
+                            .skip(1)
+                            .take(n_words)
+                            .collect::<Vec<&str>>()
+                            .join(" ")
+                    }
+                    (Some(n_words), TextStartEnd::StartEnd) => {
+                        let max_offset = if n_words >= total_n_words {
+                            0
+                        } else {
+                            total_n_words - n_words
+                        };
+                        let real_offset = std::cmp::min(max_offset, real_offset);
+                        let mut counter_words = n_words + 1;
+                        text.split_whitespace()
+                            .skip(real_offset)
+                            .skip_while(|c| !c.ends_with('.'))
+                            .skip(1)
+                            .take_while(|word| 
+                                if counter_words > 1 {
+                                    counter_words -= 1;
+                                    true
+                                } else if counter_words == 1 && !word.ends_with('.'){
+                                    true
+                                } else if counter_words == 1 && word.ends_with('.'){
+                                    counter_words -= 1;
+                                    true
+                    
+                                } else {
+                                    false
+                                })
+                            .collect::<Vec<&str>>()
+                            .join(" ")
+                    }
                 })
             },
             move || {
@@ -241,11 +322,15 @@ impl TextWidget {
         origin: TextOrigin,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<f64>,
+        text_start_end: Option<TextStartEnd>,
+        seed: Option<u64>,
     ) -> Self {
         match origin {
-            TextOrigin::Generated(name) => Self::from_language(name, dispatcher_tx, number_words),
-            TextOrigin::Text(name) => Self::from_text(name, dispatcher_tx, number_words, offset),
+            TextOrigin::Generated(name) => {
+                Self::from_language(name, dispatcher_tx, number_words, seed)
+            }
+            TextOrigin::Text(name, _) => Self::from_text(name, dispatcher_tx, number_words, offset, text_start_end),
         }
     }
 
@@ -253,9 +338,10 @@ impl TextWidget {
         name: String,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
+        seed: Option<u64>,
     ) -> Self {
         // let first_batch = 500;
-        let async_text_source = AsyncTextSource::from_language(name, dispatcher_tx);
+        let async_text_source = AsyncTextSource::from_language(name, dispatcher_tx, seed);
         // let new_chars =
         //             .into_iter()
         //             .take(first_batch)
@@ -298,10 +384,16 @@ impl TextWidget {
         name: String,
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<f64>,
+        text_start_end: Option<TextStartEnd>
     ) -> Self {
-        let async_text_source =
-            AsyncTextSource::from_text(name, dispatcher_tx, number_words, offset);
+        let async_text_source = AsyncTextSource::from_text(
+            name,
+            dispatcher_tx,
+            number_words,
+            offset,
+            text_start_end.unwrap_or_default(),
+        );
         // let typechar_text: Vec<TypeChar> = get_text(name).await.unwrap()
         //     .chars()
         //     .map(|c| TypeChar { char: c, state: CharacterState::NotTyped })
@@ -661,13 +753,16 @@ impl TextWidgetComponent {
         screen: Screen,
         origin: TextOrigin,
         number_words: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<f64>,
+        text_start_end: Option<TextStartEnd>,
+        seed: Option<u64>,
     ) -> Self {
         let clone_dispatcher_tx = dispatcher_tx.clone();
+
         TextWidgetComponent {
             screen,
             dispatcher_tx,
-            widget: TextWidget::new(origin, clone_dispatcher_tx, number_words, offset),
+            widget: TextWidget::new(origin, clone_dispatcher_tx, number_words, offset, text_start_end, seed),
             is_active: true,
         }
     }

@@ -14,7 +14,7 @@ use crate::{
     stores::Store,
     ui::{
         clock::ClockWidget,
-        text::{SettingsText, TextWidgetComponent},
+        text::{SettingsText, TextStartEnd, TextWidgetComponent},
     },
     win_data::WinData,
 };
@@ -47,20 +47,21 @@ impl ScreenSoloInfiniteGameComponent {
     }
     pub fn reset(&mut self) {
         self.start_time = None;
-        let (text_origin, number_words, offset) = {
+        let (text_origin, number_words) = {
             let race_game_settings = &self.settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
 
-            let offset = race_game_settings.offset;
-            (text_origin, number_words, offset)
+            (text_origin, number_words)
         };
         self.text_component = Some(TextWidgetComponent::new(
             self.dispatcher_tx.clone(),
             self.screen,
             text_origin,
             Some(number_words),
-            offset,
+            None,
+            Some(TextStartEnd::Start),
+            None,
         ));
     }
 }

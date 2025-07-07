@@ -1,21 +1,21 @@
-use std::{cell::RefCell, rc::Rc, time::Instant};
-
 use log::debug;
+use rand::prelude::*;
 use ratatui::{
     style::{Color, Style, Stylize},
     text::Span,
     widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget},
 };
+use std::{cell::RefCell, rc::Rc, time::Instant};
 use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::Settings,
+    settings::{OffsetText, Settings, TextOrigin},
     stores::Store,
     ui::{
         clock::ClockWidget,
-        text::{SettingsText, TextWidgetComponent},
+        text::{SettingsText, TextStartEnd, TextWidgetComponent},
     },
     win_data::{GameMod, RaceData, WinData},
 };
@@ -30,41 +30,61 @@ pub struct ScreenSoloRaceGameComponent {
     dispatcher_tx: UnboundedSender<Action>,
     text_component: Option<TextWidgetComponent>,
     start_time: Option<Instant>,
-    settings: Rc<RefCell<Settings>>,
+    shr_settings: Rc<RefCell<Settings>>,
     shr_win_data: Rc<RefCell<WinData>>,
 }
 impl ScreenSoloRaceGameComponent {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
-        settings: Rc<RefCell<Settings>>,
+        shr_settings: Rc<RefCell<Settings>>,
         shr_win_data: Rc<RefCell<WinData>>,
     ) -> Self {
         ScreenSoloRaceGameComponent {
             screen: SCREEN,
             dispatcher_tx,
-            settings,
+            shr_settings,
             text_component: None,
             start_time: None,
             shr_win_data,
         }
     }
-    pub fn reset(&mut self) {
+    pub fn load_settings(&mut self) {
         self.start_time = None;
 
-        let (text_origin, number_words, offset) = {
-            let race_game_settings = &self.settings.borrow().game_settings.race_game_settings;
+        let (text_origin, number_words, seed, keep_seed) = {
+            let seed = self.shr_settings.borrow().game_settings.seed;
+            let keep_seed = self.shr_settings.borrow().game_settings.keep_seed;
+            let race_game_settings = &self.shr_settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
-
-            let offset = race_game_settings.offset;
-            (text_origin, number_words, offset)
+            (text_origin, number_words, seed, keep_seed)
         };
+
+        let seed = if !keep_seed || seed.is_none() {
+            let mut rng = rand::rng();
+            let new_seed: u64 = rng.random();
+            self.shr_settings.borrow_mut().game_settings.seed = Some(new_seed);
+            new_seed
+        } else {
+            seed.unwrap()
+        };
+
+        let offset = match text_origin {
+            TextOrigin::Text(_, OffsetText::Random) => {
+                let mut r = StdRng::seed_from_u64(seed);
+                Some(r.random())
+            }
+            _ => None,
+        };
+
         self.text_component = Some(TextWidgetComponent::new(
             self.dispatcher_tx.clone(),
             self.screen,
             text_origin,
             Some(number_words),
             offset,
+            Some(TextStartEnd::Start),
+            Some(seed),
         ));
     }
 
@@ -74,7 +94,7 @@ impl ScreenSoloRaceGameComponent {
         let game = GameMod::Race(RaceData {
             time: Instant::now() - self.start_time.expect("time to have stated"),
             n_words: self
-                .settings
+                .shr_settings
                 .borrow()
                 .game_settings
                 .race_game_settings
@@ -96,7 +116,7 @@ impl Store for ScreenSoloRaceGameComponent {
     fn update(&mut self, action: Action) {
         match action {
             Action::OpeningScreen(screen) if screen == self.screen => {
-                self.reset();
+                self.load_settings();
             }
             Action::KeyPressed(_) if self.start_time.is_none() => {
                 self.start_time = Some(Instant::now())

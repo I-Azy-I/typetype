@@ -1,4 +1,3 @@
-use core::panic;
 use std::{cell::RefCell, fmt::format, rc::Rc};
 
 use ratatui::{
@@ -11,6 +10,7 @@ use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 use crate::{
     action::Action,
     flux::SendAction,
+    settings::Settings,
     stores::Store,
     ui::list::HorizontalList,
     win_data::{RaceData, WinData},
@@ -18,7 +18,7 @@ use crate::{
 
 use super::super::{super::*, Screen};
 
-const SCREEN: Screen = Screen::FirstMenu;
+const SCREEN: Screen = Screen::WinMenu;
 
 #[derive(Debug, Default, Clone, Copy)]
 enum SelectedOption {
@@ -55,13 +55,19 @@ impl SelectedOption {
 #[derive(Debug)]
 pub struct WinMenuComponent {
     shr_win_data: Rc<RefCell<WinData>>,
+    shr_settings: Rc<RefCell<Settings>>,
     dispatcher_tx: UnboundedSender<Action>,
     choice_state: SelectedOption,
 }
 impl WinMenuComponent {
-    pub fn new(dispatcher_tx: UnboundedSender<Action>, shr_win_data: Rc<RefCell<WinData>>) -> Self {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        shr_win_data: Rc<RefCell<WinData>>,
+        shr_settings: Rc<RefCell<Settings>>,
+    ) -> Self {
         WinMenuComponent {
             shr_win_data,
+            shr_settings,
             dispatcher_tx,
             choice_state: SelectedOption::default(),
         }
@@ -91,22 +97,32 @@ impl WinMenuComponent {
 
     fn option_selected(&self) {
         match self.choice_state {
-            SelectedOption::Leave => self
-                .send(Action::EscPressed)
-                .expect("to be able to send action"),
-            SelectedOption::Same => self
-                .send(Action::AskChangeToScreen(Screen::SoloRaceGame))
-                .expect("to be able to send action"),
-            SelectedOption::Next => self
-                .send(Action::AskChangeToScreen(Screen::SoloRaceGame))
-                .expect("to be able to send action"),
+            SelectedOption::Leave => {
+                self.shr_settings.borrow_mut().game_settings.keep_seed = false;
+                self.send(Action::EscPressed)
+                    .expect("to be able to send action")
+            }
+            SelectedOption::Same => {
+                self.shr_settings.borrow_mut().game_settings.keep_seed = true;
+                self.send(Action::AskChangeToScreen(Screen::SoloRaceGame))
+                    .expect("to be able to send action")
+            }
+            SelectedOption::Next => {
+                self.shr_settings.borrow_mut().game_settings.keep_seed = false;
+                self.send(Action::AskChangeToScreen(Screen::SoloRaceGame))
+                    .expect("to be able to send action")
+            }
         }
+    }
+    fn default(&mut self) {
+        self.choice_state = SelectedOption::default()
     }
 }
 
 impl Store for WinMenuComponent {
     fn update(&mut self, action: Action) {
         match action {
+            Action::OpeningScreen(sceen) if matches!(sceen, SCREEN) => self.default(),
             Action::RightPressed => self.choice_state = self.choice_state.next(),
             Action::LeftPressed => self.choice_state = self.choice_state.previous(),
             Action::EnterPressed => self.option_selected(),
@@ -150,9 +166,9 @@ impl Widget for &WinMenuComponent {
             .borders(Borders::ALL);
 
         let list_genertator = HorizontalList::new(vec![
-            String::from(" 1 "),
-            String::from(" ⟳ "),
-            String::from(" 3 "),
+            String::from(" Quit "),
+            String::from(" Redo ⟳ "),
+            String::from(" Next >> "),
         ])
         .block(block_choices)
         .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));

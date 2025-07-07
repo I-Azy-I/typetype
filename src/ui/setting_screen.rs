@@ -10,7 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::{Settings, TextOrigin},
+    settings::{OffsetText, Settings, TextOrigin},
     stores::Store,
     ui::screens::ScreenMember,
 };
@@ -54,7 +54,7 @@ enum GeneratingOption {
 impl GeneratingOption {
     fn to_setting_param(self, name: String) -> TextOrigin {
         match self {
-            GeneratingOption::Text => TextOrigin::Text(name),
+            GeneratingOption::Text => TextOrigin::Text(name, OffsetText::Random),
             GeneratingOption::Language => TextOrigin::Generated(name),
         }
     }

@@ -23,7 +23,7 @@ pub enum Screen {
     #[default]
     FirstMenu,
     SoloGamesMenu,
-    SoloRaceGame,
+    SoloRaceGame, // true ask to change the seed
     SoloRaceSettingScreen,
     SoloInfiniteGame,
     WinMenu,
@@ -79,7 +79,11 @@ impl ScreenRouterComponent {
             data_end_game.clone(),
         );
 
-        let win_menu = WinMenuComponent::new(dispatcher_tx.clone(), data_end_game.clone());
+        let win_menu = WinMenuComponent::new(
+            dispatcher_tx.clone(),
+            data_end_game.clone(),
+            settings.clone(),
+        );
         ScreenRouterComponent {
             dispatcher_tx,
             settings,
@@ -117,7 +121,7 @@ impl ScreenRouterComponent {
         }
     }
 
-    fn updates_menus(&mut self, action: Action) {
+    fn updates_screens(&mut self, action: Action) {
         match self.current_sceen_kind {
             Screen::FirstMenu => self.first_menu.update(action),
             Screen::SoloGamesMenu => self.solo_game_menu.update(action),
@@ -132,7 +136,7 @@ impl ScreenRouterComponent {
 
 impl Store for ScreenRouterComponent {
     fn update(&mut self, action: crate::action::Action) {
-        self.updates_menus(action);
+        self.updates_screens(action);
         match action {
             Action::EscPressed => {
                 if let Some(new_screen) = self.current_sceen_kind.previous() {

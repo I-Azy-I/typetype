@@ -16,7 +16,7 @@ struct WordList {
     words: Vec<String>,
 }
 
-pub async fn get_language(name: String) -> Option<WordList> {
+async fn get_language(name: String) -> Option<WordList> {
     match File::open(format!("{PATH_LANGUAGES}{name}")).await {
         Ok(file) => {
             let mut reader = BufReader::new(file);
@@ -103,16 +103,26 @@ fn format_text(input: &str) -> String {
 pub struct TextGenerator {
     word_list: WordList,
     rng: StdRng,
+    seed: u64,
 }
 impl TextGenerator {
     pub async fn from_language(name: String, seed: Option<u64>) -> Option<Self> {
         let word_list = get_language(name).await?;
-        let rng = if let Some(seed) = seed {
-            StdRng::seed_from_u64(seed)
+        let (rng, seed) = if let Some(seed) = seed {
+            (StdRng::seed_from_u64(seed), seed)
         } else {
-            StdRng::from_os_rng()
+            let mut rng = rand::rng();
+            let seed: u64 = rng.random();
+            (StdRng::seed_from_u64(seed), seed)
         };
-        Some(TextGenerator { word_list, rng })
+        Some(TextGenerator {
+            word_list,
+            rng,
+            seed,
+        })
+    }
+    pub fn seed(&self) -> u64 {
+        self.seed
     }
     pub fn iter<'a>(&'a mut self) -> TextGeneratorIter<'a> {
         TextGeneratorIter {
