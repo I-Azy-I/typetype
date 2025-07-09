@@ -12,6 +12,7 @@ mod menus;
 
 use crate::ui::screens::games::solo_infinite_game::ScreenSoloInfiniteGameComponent;
 use crate::ui::screens::menus::debug_menu::DebugMenuScreen;
+use crate::ui::screens::menus::settings::{SoloClockSettingScreen, SoloInfiniteSettingScreen};
 use crate::ui::screens::menus::win_menu::{self, WinMenuScreen};
 use crate::win_data::WinData;
 use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
@@ -23,10 +24,14 @@ pub enum Screen {
     #[default]
     FirstMenu,
     SoloGamesMenu,
-    SoloRaceGame, // true ask to change the seed
-    SoloRaceSettingScreen,
+    SoloRaceGame,
+    SoloRaceSetting,
     SoloInfiniteGame,
+    SoloInfiniteSetting,
+    SoloClockGame,
+    SoloClockSetting,
     WinMenu,
+
     DebugMenu,
 }
 impl Screen {
@@ -35,10 +40,13 @@ impl Screen {
             Screen::FirstMenu => None,
             Screen::SoloGamesMenu => Some(Screen::FirstMenu),
             Screen::SoloRaceGame => Some(Screen::FirstMenu),
-            Screen::SoloRaceSettingScreen => Some(Screen::SoloGamesMenu),
+            Screen::SoloRaceSetting => Some(Screen::SoloGamesMenu),
             Screen::SoloInfiniteGame => Some(Screen::SoloGamesMenu),
             Screen::DebugMenu => Some(Screen::FirstMenu),
             Screen::WinMenu => Some(Screen::FirstMenu),
+            Screen::SoloClockSetting => Some(Screen::SoloGamesMenu),
+            Screen::SoloInfiniteSetting => Some(Screen::SoloGamesMenu),
+            Screen::SoloClockGame => Some(Screen::FirstMenu),
         }
     }
 }
@@ -54,7 +62,10 @@ pub struct ScreenRouterComponent {
     solo_game_menu: SoloGamesMenuScreen,
     solo_speed_game: ScreenSoloRaceGameScreen,
     setting_solo_race: SoloRaceSettingScreen,
+    
     solo_infinte_game: ScreenSoloInfiniteGameComponent,
+    setting_solo_infinite: SoloInfiniteSettingScreen,
+    setting_solo_clock: SoloClockSettingScreen,
 
     win_menu: WinMenuScreen,
     debug_menu: DebugMenuScreen,
@@ -80,6 +91,9 @@ impl ScreenRouterComponent {
             settings.clone(),
             data_end_game.clone(),
         );
+         let setting_solo_infinite = SoloInfiniteSettingScreen::new(dispatcher_tx.clone(), settings.clone());
+
+         let setting_solo_clock = SoloClockSettingScreen::new(dispatcher_tx.clone(), settings.clone());
 
         let win_menu = WinMenuScreen::new(
             dispatcher_tx.clone(),
@@ -95,7 +109,8 @@ impl ScreenRouterComponent {
             solo_speed_game,
             setting_solo_race,
             solo_infinte_game,
-
+            setting_solo_infinite,
+            setting_solo_clock,
             win_menu,
             debug_menu,
         }
@@ -126,11 +141,14 @@ impl ScreenRouterComponent {
             Screen::FirstMenu => self.first_menu.update_screen(action),
             Screen::SoloGamesMenu => self.solo_game_menu.update_screen(action),
             Screen::SoloRaceGame => self.solo_speed_game.update_screen(action),
-            Screen::SoloRaceSettingScreen => self.setting_solo_race.update_screen(action),
+            Screen::SoloRaceSetting => self.setting_solo_race.update_screen(action),
             Screen::SoloInfiniteGame => self.solo_infinte_game.update_screen(action),
+            Screen::SoloInfiniteSetting => self.setting_solo_infinite.update_screen(action),
+            Screen::SoloClockSetting => self.setting_solo_clock.update_screen(action),
             Screen::DebugMenu => self.debug_menu.update_screen(action),
             Screen::WinMenu => self.win_menu.update_screen(action),
-        }
+            Screen::SoloClockGame => todo!()
+                    }
     }
 }
 
@@ -167,10 +185,13 @@ impl Widget for &mut ScreenRouterComponent {
             Screen::FirstMenu => self.first_menu.render(area, buf),
             Screen::SoloGamesMenu => self.solo_game_menu.render(area, buf),
             Screen::SoloRaceGame => self.solo_speed_game.render(area, buf),
-            Screen::SoloRaceSettingScreen => self.setting_solo_race.render(area, buf),
+            Screen::SoloRaceSetting => self.setting_solo_race.render(area, buf),
             Screen::SoloInfiniteGame => self.solo_infinte_game.render(area, buf),
+            Screen::SoloInfiniteSetting => self.setting_solo_infinite.render(area, buf),
+            Screen::SoloClockSetting => self.setting_solo_clock.render(area, buf),
             Screen::DebugMenu => self.debug_menu.render(area, buf),
             Screen::WinMenu => self.win_menu.render(area, buf),
+            Screen::SoloClockGame => todo!(),
         }
     }
 }

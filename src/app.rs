@@ -24,7 +24,7 @@ pub struct AppStore {
     dispatcher_tx: UnboundedSender<Action>,
     exit: bool,
     screen_router: ScreenRouterComponent,
-    time_last_frame: Instant
+    time_last_frame: Instant,
 }
 impl AppStore {
     fn new(
@@ -39,7 +39,7 @@ impl AppStore {
                 dispatcher_tx,
                 screen_router,
                 exit: false,
-                time_last_frame: Instant::now()
+                time_last_frame: Instant::now(),
             },
             action_tx,
         )
@@ -47,7 +47,11 @@ impl AppStore {
     async fn update(&mut self) {
         // Set up a timeout of 10ms
         let duration = Instant::now() - self.time_last_frame;
-        let timeout = tokio::time::sleep(Duration::from_millis(MILISECONDS_PER_FRAME).checked_sub(duration).unwrap_or_default());
+        let timeout = tokio::time::sleep(
+            Duration::from_millis(MILISECONDS_PER_FRAME)
+                .checked_sub(duration)
+                .unwrap_or_default(),
+        );
         tokio::pin!(timeout);
 
         // Keep processing actions until timeout
@@ -56,7 +60,7 @@ impl AppStore {
             // let action = self.action_rx.recv().await.unwrap();
             // println!("action recieved");
             // self.text_store.update(action);
-            
+
             tokio::select! {
                 // Try to receive more actions (will not block if channel is empty)
                 biased;

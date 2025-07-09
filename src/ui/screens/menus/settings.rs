@@ -1,24 +1,393 @@
 use std::{cell::RefCell, rc::Rc};
 
+use async_deferred::Deferred;
 use log::debug;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
-    widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget},
 };
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{fs, sync::mpsc::UnboundedSender};
 
 use crate::{
     action::Action,
+    config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS},
     flux::SendAction,
-    settings::Settings,
+    settings::{OffsetText, Settings, StartEndSentence, TextOrigin},
     stores::Store,
     ui::{
         list::HorizontalList,
         screens::{IsScreen, Screen, games::GameMod},
-        setting_screen::SettingsSoloGameComponent,
     },
 };
+
+#[derive(Copy, Clone, Debug)]
+enum SelectedPart {
+    Generator,
+    Source,
+    None,
+}
+
+impl SelectedPart {
+    fn next(self) -> Self {
+        match self {
+            SelectedPart::Generator => SelectedPart::Source,
+            SelectedPart::Source => SelectedPart::Source,
+            SelectedPart::None => SelectedPart::None,
+        }
+    }
+
+    fn previous(self) -> Self {
+        match self {
+            SelectedPart::Generator => SelectedPart::Generator,
+            SelectedPart::Source => SelectedPart::Generator,
+            SelectedPart::None => SelectedPart::None,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+enum GeneratingOption {
+    #[default]
+    Text,
+    Language,
+}
+impl GeneratingOption {
+    fn to_setting_param(self) -> TextOrigin {
+        match self {
+            GeneratingOption::Text => TextOrigin::Text(OffsetText::Random),
+            GeneratingOption::Language => TextOrigin::Generated,
+        }
+    }
+}
+
+impl GeneratingOption {
+    fn next(self) -> Self {
+        match self {
+            GeneratingOption::Text => GeneratingOption::Language,
+            GeneratingOption::Language => GeneratingOption::Language,
+        }
+    }
+    fn previous(self) -> Self {
+        match self {
+            GeneratingOption::Text => GeneratingOption::Text,
+            GeneratingOption::Language => GeneratingOption::Text,
+        }
+    }
+
+    fn to_list_state(self) -> ListState {
+        let selected = match self {
+            GeneratingOption::Text => 0,
+            GeneratingOption::Language => 1,
+        };
+        ListState::default().with_selected(Some(selected))
+    }
+    fn get_list() -> [&'static str; 2] {
+        ["Text", "Language"]
+    }
+}
+async fn get_list_file_in_folder(path: &str, first_value: Option<String>) -> Vec<String> {
+    let res = async {
+        let mut entries = fs::read_dir(path).await.ok()?;
+        let mut files = Vec::new();
+
+        while let Some(entry) = entries.next_entry().await.ok()? {
+            if entry.file_type().await.ok()?.is_file() {
+                files.push(entry.file_name().display().to_string());
+            }
+        }
+
+        if let Some(first_value) = first_value {
+            let index = files.iter().position(|entry| *entry == first_value);
+            if let Some(index) = index {
+                files.remove(index);
+            }
+            files.sort();
+            if index.is_some() {
+                files.insert(0, first_value);
+            }
+        } else {
+            files.sort();
+        }
+
+        Some(files)
+    }
+    .await;
+    res.unwrap_or_default()
+}
+
+#[derive(Debug)]
+pub struct SourceSettingsSoloGameComponent {
+    dispatcher_tx: UnboundedSender<Action>,
+    settings: Rc<RefCell<Settings>>,
+    state_generator: GeneratingOption,
+    texts: Deferred<Vec<String>>,
+    selected_text: ListState,
+    languages: Deferred<Vec<String>>,
+    selected_language: ListState,
+    selected_part: SelectedPart,
+    editing_part: SelectedPart,
+    game_mod: GameMod,
+}
+impl SourceSettingsSoloGameComponent {
+    pub fn new(
+        dispatcher_tx: UnboundedSender<Action>,
+        settings: Rc<RefCell<Settings>>,
+        game_mod: GameMod,
+    ) -> Self {
+        let texts = Deferred::start(async || {
+            get_list_file_in_folder(PATH_TEXTS, Some(String::from(DEFAULT_TEXT))).await
+        });
+        let languages = Deferred::start(async || {
+            get_list_file_in_folder(PATH_LANGUAGES, Some(String::from(DEFAULT_LANGUAGE))).await
+        });
+
+        SourceSettingsSoloGameComponent {
+            dispatcher_tx,
+            settings,
+            state_generator: GeneratingOption::default(),
+            selected_part: SelectedPart::None,
+            editing_part: SelectedPart::None,
+            texts,
+            selected_text: ListState::default().with_selected(Some(0)),
+            languages,
+            selected_language: ListState::default().with_selected(Some(0)),
+            game_mod,
+        }
+    }
+
+    pub fn selected_part(&self) -> SelectedPart {self.selected_part}
+     pub fn editing_part(&self) -> SelectedPart {self.editing_part}
+    pub fn select_default(&mut self) {
+        self.selected_part = SelectedPart::Generator
+    }
+    pub fn select_generator(&mut self) {
+        self.selected_part = SelectedPart::Generator
+    }
+    pub fn select_source(&mut self) {
+        self.selected_part = SelectedPart::Source
+    }
+
+    pub fn select_next(&mut self) {
+        self.selected_part = self.selected_part.next();
+    }
+    pub fn select_previous(&mut self) {
+        self.selected_part = self.selected_part.previous();
+    }
+    pub fn unselect(&mut self) {
+        self.editing_part = SelectedPart::None;
+        self.selected_part = SelectedPart::None;
+    }
+
+    pub fn next_generator(&mut self) {
+        self.state_generator = self.state_generator.next();
+    }
+
+    pub fn previous_generator(&mut self) {
+        self.state_generator = self.state_generator.previous();
+    }
+    // fn select_new_source(&mut self, filename: String) {
+    //     match self.game_mod {
+    //         GameMod::Race => {
+    //             self.settings
+    //                 .borrow_mut()
+    //                 .game_settings
+    //                 .race_game_settings
+    //                 .filename = filename
+    //         }
+    //         GameMod::Clock => todo!(),
+    //         GameMod::Infinite => todo!(),
+    //     }
+    // }
+    fn get_current_filename(&self) -> Option<String> {
+        match self.state_generator {
+            GeneratingOption::Text => self
+                .texts
+                .try_get()
+                .map(|texts| texts[self.selected_text.selected().unwrap()].clone()),
+            GeneratingOption::Language => self
+                .languages
+                .try_get()
+                .map(|languages| languages[self.selected_text.selected().unwrap()].clone()),
+        }
+    }
+    pub fn save_in_settings(&self) {
+        let mut settings = self.settings.borrow_mut();
+        match self.game_mod {
+            GameMod::Race => {
+                let race_game_settings = &mut settings.game_settings.race_game_settings;
+                race_game_settings.text_origin = self.state_generator.to_setting_param();
+                if let Some(filename) = self.get_current_filename() {
+                    race_game_settings.filename = filename
+                }
+            }
+            GameMod::Clock => todo!(),
+            GameMod::Infinite => todo!(),
+        }
+    }
+
+    pub fn is_editing(&self) -> bool {
+        !matches!(self.editing_part, SelectedPart::None)
+    }
+    pub fn is_selected(&self) -> bool {
+        !matches!(self.selected_part, SelectedPart::None)
+    }
+}
+
+impl Store for SourceSettingsSoloGameComponent {
+    fn update(&mut self, action: Action) {
+        match action {
+            Action::RightPressed => match self.editing_part {
+                SelectedPart::Generator => self.next_generator(),
+                SelectedPart::Source => {},
+                SelectedPart::None => {},
+            },
+            Action::LeftPressed => match self.editing_part {
+                SelectedPart::Generator => self.previous_generator(),
+                SelectedPart::Source => {},
+                SelectedPart::None => {}
+            },
+
+            Action::UpPressed => match self.editing_part {
+                SelectedPart::Generator => self.editing_part = SelectedPart::None,
+                SelectedPart::Source => match self.state_generator {
+                    GeneratingOption::Text => {
+                        if self.texts.is_complete() {
+                            self.selected_text.select_previous()
+                        }
+                    }
+                    GeneratingOption::Language => {
+                        if self.languages.is_complete() {
+                            self.selected_language.select_previous();
+                        }
+                    }
+                },
+                SelectedPart::None => self.selected_part = self.selected_part.previous(),
+            },
+            Action::DownPressed => match self.editing_part {
+                SelectedPart::Generator => {
+                    self.editing_part = SelectedPart::None;
+                    self.selected_part = self.selected_part.next()
+                }
+                SelectedPart::Source => match self.state_generator {
+                    GeneratingOption::Text => {
+                        if let Some(sources) = self.texts.try_get() {
+                            if self.selected_text.selected().unwrap() < sources.len() - 1 {
+                                self.selected_text.select_next();
+                            }
+                        }
+                    }
+                    GeneratingOption::Language => {
+                        if let Some(sources) = self.languages.try_get() {
+                            if self.selected_language.selected().unwrap() < sources.len() - 1 {
+                                self.selected_language.select_next();
+                            }
+                        }
+                    }
+                },
+                SelectedPart::None => self.selected_part = self.selected_part.next(),
+            },
+            Action::EnterPressed if !matches!(self.editing_part, SelectedPart::None) => {
+                self.editing_part = SelectedPart::None;
+            }
+            Action::EnterPressed if matches!(self.editing_part, SelectedPart::None) => {
+                self.editing_part = self.selected_part;
+            }
+
+            _ => {}
+        }
+    }
+}
+
+impl SendAction for SourceSettingsSoloGameComponent {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+
+impl Widget for &SourceSettingsSoloGameComponent {
+    fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
+        //self.a_component.render(area, buf);
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3), Constraint::Percentage(50)])
+            .split(area);
+        let block_generator = {
+            let block = Block::default()
+                .border_type(BorderType::Rounded)
+                .title("Text generation")
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, SelectedPart::Generator) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, SelectedPart::Generator) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_genertator = HorizontalList::new(
+            GeneratingOption::get_list()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_generator)
+        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        ratatui::widgets::StatefulWidget::render(
+            &list_genertator,
+            layout[0],
+            buf,
+            &mut self.state_generator.to_list_state(),
+        );
+
+        let block_src = {
+            let block = Block::default()
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+
+            if matches!(self.editing_part, SelectedPart::Source) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, SelectedPart::Source) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        match self.state_generator {
+            GeneratingOption::Text => {
+                if let Some(sources) = self.texts.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout[1],
+                        buf,
+                        &mut self.selected_text.clone(),
+                    );
+                }
+            }
+            GeneratingOption::Language => {
+                if let Some(sources) = self.languages.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout[1],
+                        buf,
+                        &mut self.selected_language.clone(),
+                    );
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone, Copy)]
 enum NumberWord {
@@ -78,33 +447,74 @@ impl NumberWord {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
+enum StartEndSentenceState {
+    #[default]
+    None,
+    Start,
+    StartEnd,
+}
+impl StartEndSentenceState {
+    fn next(self) -> Self {
+        match self {
+            StartEndSentenceState::None => StartEndSentenceState::Start,
+            StartEndSentenceState::Start => StartEndSentenceState::StartEnd,
+            StartEndSentenceState::StartEnd => StartEndSentenceState::StartEnd,
+        }
+    }
+    fn previous(self) -> Self {
+        match self {
+            StartEndSentenceState::None => StartEndSentenceState::None,
+            StartEndSentenceState::Start => StartEndSentenceState::None,
+            StartEndSentenceState::StartEnd => StartEndSentenceState::Start,
+        }
+    }
+    fn state(self) -> ListState {
+        let value = match self {
+            StartEndSentenceState::None => 0,
+            StartEndSentenceState::Start => 1,
+            StartEndSentenceState::StartEnd => 2,
+        };
+        ListState::default().with_selected(Some(value))
+    }
+
+    fn setting_value(self) -> StartEndSentence {
+        match self {
+            StartEndSentenceState::None => StartEndSentence::Any,
+            StartEndSentenceState::Start => StartEndSentence::Start,
+            StartEndSentenceState::StartEnd => StartEndSentence::StartEnd,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 enum RacePart {
     NumberWord,
     #[default]
     None,
+    StartEnd,
 }
+
 #[derive(Debug)]
 pub struct SoloRaceSettingScreen {
     dispatcher_tx: UnboundedSender<Action>,
     settings: Rc<RefCell<Settings>>,
-    basic_settings: SettingsSoloGameComponent,
+    source_settings: SourceSettingsSoloGameComponent,
     chosen_length: NumberWord,
+    start_end_option: StartEndSentenceState,
     selected_part: RacePart,
     editing_part: RacePart,
 }
 
 impl SoloRaceSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let mut basic_settings = SettingsSoloGameComponent::new(
-            dispatcher_tx.clone(),
-            settings.clone(),
-            GameMod::Race,
-        );
+        let mut basic_settings =
+            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
         basic_settings.select_default();
         SoloRaceSettingScreen {
             dispatcher_tx,
             settings,
-            basic_settings,
+            source_settings: basic_settings,
+            start_end_option: StartEndSentenceState::default(),
             chosen_length: NumberWord::default(),
             selected_part: RacePart::default(),
             editing_part: RacePart::default(),
@@ -113,49 +523,89 @@ impl SoloRaceSettingScreen {
 
     fn next_choosed_number_words(&mut self) {
         self.chosen_length = self.chosen_length.next();
-        let mut settings = self.settings.borrow_mut();
-        settings.game_settings.race_game_settings.number_words = self.chosen_length.value() as usize
     }
     fn previous_choosed_number_words(&mut self) {
         self.chosen_length = self.chosen_length.previous();
-        let mut settings = self.settings.borrow_mut();
-        settings.game_settings.race_game_settings.number_words = self.chosen_length.value() as usize
     }
 
-     fn save_in_settings(&self) {
-        self.basic_settings.save_in_settings();
+    fn next_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.next();
+    }
+    fn previous_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.previous();
+    }
+
+    fn save_in_settings(&self) {
+        self.source_settings.save_in_settings();
         let settings_race = &mut self.settings.borrow_mut().game_settings.race_game_settings;
         settings_race.number_words = self.chosen_length.value();
+        settings_race.start_end_sentence = self.start_end_option.setting_value();
     }
 }
 
 impl Store for SoloRaceSettingScreen {
     fn update(&mut self, action: Action) {
-        self.basic_settings.update(action);
-        if !self.basic_settings.selected() {
-            if matches!(self.selected_part, RacePart::None) {
-                self.selected_part = RacePart::NumberWord
-            };
+        self.source_settings.update(action);
+        if !self.source_settings.is_selected() {
             match action {
-                Action::DownPressed => {}
-                Action::UpPressed => {}
+                Action::DownPressed => match self.selected_part {
+                    RacePart::NumberWord => {
+                        self.editing_part = RacePart::None;
+                        self.selected_part = RacePart::StartEnd
+                    }
+                    RacePart::StartEnd if matches!(self.editing_part, RacePart::StartEnd) => {
+                        self.next_start_end()
+                    }
+                    RacePart::StartEnd | RacePart::None => {}
+                },
+                Action::UpPressed => match self.selected_part {
+                    RacePart::NumberWord => {}
+                    RacePart::None => {}
+                    RacePart::StartEnd => {
+                        if matches!(self.editing_part, RacePart::StartEnd) {
+                            self.previous_start_end()
+                        } else {
+                            self.selected_part = RacePart::NumberWord
+                        }
+                    }
+                },
                 Action::RightPressed => match self.editing_part {
                     RacePart::NumberWord => self.next_choosed_number_words(),
-                    RacePart::None => {}
+                    RacePart::None | RacePart::StartEnd => {}
                 },
                 Action::LeftPressed => match self.editing_part {
                     RacePart::NumberWord => self.previous_choosed_number_words(),
-                    RacePart::None => {
+                    RacePart::None | RacePart::StartEnd => {
+                        match self.selected_part {
+                            RacePart::NumberWord => self.source_settings.select_generator(),
+                            RacePart::None => unreachable!(),
+                            RacePart::StartEnd => self.source_settings.select_source(),
+                        }
                         self.selected_part = RacePart::None;
-                        self.basic_settings.select_default();
+                        self.editing_part = RacePart::None;
                     }
                 },
                 Action::EnterPressed => match self.editing_part {
                     RacePart::NumberWord => self.editing_part = RacePart::None,
                     RacePart::None => self.editing_part = self.selected_part,
+                    RacePart::StartEnd => self.editing_part = RacePart::None,
                 },
                 _ => {}
             }
+        } else {
+            match action {
+                Action::RightPressed => match self.source_settings.selected_part() {
+                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
+                        self.source_settings.unselect();self.selected_part = RacePart::NumberWord},
+                    SelectedPart::Source => {
+                        self.source_settings.unselect();
+                        self.selected_part = RacePart::StartEnd;}
+                    SelectedPart::Generator | SelectedPart::None => {},
+            },
+            _ => {}
+            };
+            
+            
         }
     }
 }
@@ -174,11 +624,11 @@ impl Widget for &SoloRaceSettingScreen {
             ])
             .split(area);
         let basic_config_area = layout[0];
-        self.basic_settings.render(basic_config_area, buf);
+        self.source_settings.render(basic_config_area, buf);
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(3), Constraint::Percentage(100)])
+            .constraints(vec![Constraint::Length(3), Constraint::Length(5)])
             .split(layout[1]);
 
         let block_n_words_selection = {
@@ -203,6 +653,25 @@ impl Widget for &SoloRaceSettingScreen {
         .block(block_n_words_selection)
         .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
         list.render(layout[0], buf, &mut self.chosen_length.state());
+
+        let block_start = {
+            let block = Block::default()
+                .title("Fit sentences")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, RacePart::StartEnd) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, RacePart::StartEnd) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Any", "Start", "Start and End"])
+            .block(block_start)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(list_src, layout[1], buf, &mut self.start_end_option.state());
     }
 }
 impl SendAction for SoloRaceSettingScreen {
@@ -212,6 +681,428 @@ impl SendAction for SoloRaceSettingScreen {
 }
 
 impl IsScreen for SoloRaceSettingScreen {
+    fn close(&mut self) {
+        debug!("closed");
+        self.save_in_settings();
+        debug!("settings: {:#?}", self.settings.borrow())
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum TimeCock {
+    S10,
+    S20,
+    #[default]
+    S30,
+    S60,
+    Custom(usize), // TODO
+}
+
+impl TimeCock {
+    fn next(self) -> Self {
+        use TimeCock::*;
+        match self {
+            S10 => S20,
+            S20 => S30,
+            S30 => S60,
+            S60 => S60,
+            Custom(_) => todo!(),
+        }
+    }
+    fn previous(self) -> Self {
+        use TimeCock::*;
+        match self {
+            S10 => S10,
+            S20 => S10,
+            S30 => S20,
+            S60 => S30,
+            Custom(_) => todo!(),
+        }
+    }
+    fn state(self) -> ListState {
+        use TimeCock::*;
+        let value = match self {
+            S10 => 0,
+            S20 => 1,
+            S30 => 2,
+            S60 => 3,
+            Custom(_) => todo!(),
+        };
+        ListState::default().with_selected(Some(value))
+    }
+    fn value(self) -> usize {
+        use TimeCock::*;
+        match self {
+            S10 => 10,
+            S20 => 20,
+            S30 => 30,
+            S60 => 60,
+            Custom(_) => todo!(),
+        }
+    }
+    fn get_list_option() -> [&'static str; 4] {
+        ["10s", "20s", "30s", "60s"]
+    }
+}
+
+
+
+#[derive(Debug, Default, Clone, Copy)]
+enum ClockPart {
+    NumberWord,
+    #[default]
+    None,
+    StartEnd,
+}
+
+#[derive(Debug)]
+pub struct SoloClockSettingScreen {
+    dispatcher_tx: UnboundedSender<Action>,
+    settings: Rc<RefCell<Settings>>,
+    source_settings: SourceSettingsSoloGameComponent,
+    chosen_time: TimeCock,
+    start_end_option: StartEndSentenceState,
+    selected_part: ClockPart,
+    editing_part: ClockPart,
+}
+
+impl SoloClockSettingScreen {
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
+        let mut basic_settings =
+            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
+        basic_settings.select_default();
+        SoloClockSettingScreen {
+            dispatcher_tx,
+            settings,
+            source_settings: basic_settings,
+            start_end_option: StartEndSentenceState::default(),
+            chosen_time: TimeCock::default(),
+            selected_part: ClockPart::default(),
+            editing_part: ClockPart::default(),
+        }
+    }
+
+    fn next_choosed_time(&mut self) {
+        self.chosen_time = self.chosen_time.next();
+    }
+    fn previous_choosed_time(&mut self) {
+        self.chosen_time = self.chosen_time.previous();
+    }
+
+    fn next_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.next();
+    }
+    fn previous_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.previous();
+    }
+
+    fn save_in_settings(&self) {
+        self.source_settings.save_in_settings();
+        let settings_clock = &mut self.settings.borrow_mut().game_settings.clock_game_settings;
+        settings_clock.time = self.chosen_time.value();
+        settings_clock.start_end_sentence = self.start_end_option.setting_value();
+    }
+}
+
+impl Store for SoloClockSettingScreen {
+    fn update(&mut self, action: Action) {
+        self.source_settings.update(action);
+        if !self.source_settings.is_selected() {
+            match action {
+                Action::DownPressed => match self.selected_part {
+                    ClockPart::NumberWord => {
+                        self.editing_part = ClockPart::None;
+                        self.selected_part = ClockPart::StartEnd
+                    }
+                    ClockPart::StartEnd if matches!(self.editing_part, ClockPart::StartEnd) => {
+                        self.next_start_end()
+                    }
+                    ClockPart::StartEnd | ClockPart::None => {}
+                },
+                Action::UpPressed => match self.selected_part {
+                    ClockPart::NumberWord => {}
+                    ClockPart::None => {}
+                    ClockPart::StartEnd => {
+                        if matches!(self.editing_part, ClockPart::StartEnd) {
+                            self.previous_start_end()
+                        } else {
+                            self.selected_part = ClockPart::NumberWord
+                        }
+                    }
+                },
+                Action::RightPressed => match self.editing_part {
+                    ClockPart::NumberWord => self.next_choosed_time(),
+                    ClockPart::None | ClockPart::StartEnd => {}
+                },
+                Action::LeftPressed => match self.editing_part {
+                    ClockPart::NumberWord => self.previous_choosed_time(),
+                    ClockPart::None | ClockPart::StartEnd => {
+                        match self.selected_part {
+                            ClockPart::NumberWord => self.source_settings.select_generator(),
+                            ClockPart::None => unreachable!(),
+                            ClockPart::StartEnd => self.source_settings.select_source(),
+                        }
+                        self.selected_part = ClockPart::None;
+                        self.editing_part = ClockPart::None;
+                    }
+                },
+                Action::EnterPressed => match self.editing_part {
+                    ClockPart::NumberWord => self.editing_part = ClockPart::None,
+                    ClockPart::None => self.editing_part = self.selected_part,
+                    ClockPart::StartEnd => self.editing_part = ClockPart::None,
+                },
+                _ => {}
+            }
+        } else {
+            match action {
+                Action::RightPressed => match self.source_settings.selected_part() {
+                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
+                        self.source_settings.unselect();self.selected_part = ClockPart::NumberWord},
+                    SelectedPart::Source => {
+                        self.source_settings.unselect();
+                        self.selected_part = ClockPart::StartEnd;}
+                    SelectedPart::Generator | SelectedPart::None => {},
+            },
+            _ => {}
+            };
+            
+            
+        }
+    }
+}
+
+impl Widget for &SoloClockSettingScreen {
+    fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+            ])
+            .split(area);
+        let basic_config_area = layout[0];
+        self.source_settings.render(basic_config_area, buf);
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3), Constraint::Length(5)])
+            .split(layout[1]);
+
+        let block_n_words_selection = {
+            let block = Block::default()
+                .title("Time")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, ClockPart::NumberWord) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, ClockPart::NumberWord) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+        let list = HorizontalList::new(
+            TimeCock::get_list_option()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_n_words_selection)
+        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        list.render(layout[0], buf, &mut self.chosen_time.state());
+
+        let block_start = {
+            let block = Block::default()
+                .title("Fit sentences")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, ClockPart::StartEnd) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, ClockPart::StartEnd) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Any", "Start", "Start and End"])
+            .block(block_start)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(list_src, layout[1], buf, &mut self.start_end_option.state());
+    }
+}
+impl SendAction for SoloClockSettingScreen {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+
+impl IsScreen for SoloClockSettingScreen {
+    fn close(&mut self) {
+        debug!("closed");
+        self.save_in_settings();
+        debug!("settings: {:#?}", self.settings.borrow())
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum InfinitePart {
+    #[default]
+    None,
+    StartEnd,
+}
+
+
+#[derive(Debug)]
+pub struct SoloInfiniteSettingScreen {
+    dispatcher_tx: UnboundedSender<Action>,
+    settings: Rc<RefCell<Settings>>,
+    source_settings: SourceSettingsSoloGameComponent,
+    start_end_option: StartEndSentenceState,
+    selected_part: InfinitePart,
+    editing_part: InfinitePart,
+}
+
+impl SoloInfiniteSettingScreen {
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
+        let mut basic_settings =
+            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
+        basic_settings.select_default();
+        SoloInfiniteSettingScreen {
+            dispatcher_tx,
+            settings,
+            source_settings: basic_settings,
+            start_end_option: StartEndSentenceState::default(),
+            selected_part: InfinitePart::default(),
+            editing_part: InfinitePart::default(),
+        }
+    }
+
+
+    fn next_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.next();
+    }
+    fn previous_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.previous();
+    }
+
+    fn save_in_settings(&self) {
+        self.source_settings.save_in_settings();
+        let settings_infinite = &mut self.settings.borrow_mut().game_settings.infinite_game_settings;
+        settings_infinite.start_end_sentence = self.start_end_option.setting_value();
+    }
+}
+
+impl Store for SoloInfiniteSettingScreen {
+    fn update(&mut self, action: Action) {
+        self.source_settings.update(action);
+        if !self.source_settings.is_selected() {
+            match action {
+                Action::DownPressed => match self.selected_part {
+                    InfinitePart::StartEnd if matches!(self.editing_part, InfinitePart::StartEnd) => {
+                        self.next_start_end()
+                    }
+                    InfinitePart::StartEnd | InfinitePart::None => {}
+                },
+                Action::UpPressed => match self.editing_part {
+                    InfinitePart::None => {}
+                    InfinitePart::StartEnd => {
+                        
+                            self.previous_start_end()
+                        
+                    }
+                },
+                Action::RightPressed => match self.editing_part {
+                    InfinitePart::None | InfinitePart::StartEnd => {}
+                },
+                Action::LeftPressed => match self.editing_part {
+                    InfinitePart::None | InfinitePart::StartEnd => {
+                        match self.selected_part {
+
+                            InfinitePart::None => unreachable!(),
+                            InfinitePart::StartEnd => self.source_settings.select_generator(),
+                        }
+                        self.selected_part = InfinitePart::None;
+                        self.editing_part = InfinitePart::None;
+                    }
+                },
+                Action::EnterPressed => match self.editing_part {
+                    InfinitePart::None => self.editing_part = self.selected_part,
+                    InfinitePart::StartEnd => self.editing_part = InfinitePart::None,
+                },
+                _ => {}
+            }
+        } else {
+            match action {
+                Action::RightPressed => match self.source_settings.selected_part() {
+                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
+                        self.source_settings.unselect();self.selected_part = InfinitePart::StartEnd},
+                    SelectedPart::Source => {
+                        self.source_settings.unselect();
+                        self.selected_part = InfinitePart::StartEnd;}
+                    SelectedPart::Generator | SelectedPart::None => {},
+            },
+            _ => {}
+            };
+            
+            
+        }
+    }
+}
+
+impl Widget for &SoloInfiniteSettingScreen {
+    fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+            ])
+            .split(area);
+        let basic_config_area = layout[0];
+        self.source_settings.render(basic_config_area, buf);
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(5),])
+            .split(layout[1]);
+
+
+        let block_start = {
+            let block = Block::default()
+                .title("Fit sentences")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, InfinitePart::StartEnd) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, InfinitePart::StartEnd) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Any", "Start", "Start and End"])
+            .block(block_start)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(list_src, layout[0], buf, &mut self.start_end_option.state());
+    }
+}
+impl SendAction for SoloInfiniteSettingScreen {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+
+impl IsScreen for SoloInfiniteSettingScreen {
     fn close(&mut self) {
         debug!("closed");
         self.save_in_settings();

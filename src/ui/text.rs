@@ -18,7 +18,12 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    action::Action, config::{PATH_LANGUAGES, PATH_TEXTS}, flux::SendAction, settings::{OffsetText, TextOrigin}, stores::Store, text_generator::{get_text, TextGenerator}
+    action::Action,
+    config::{PATH_LANGUAGES, PATH_TEXTS},
+    flux::SendAction,
+    settings::{OffsetText, StartEndSentence, TextOrigin},
+    stores::Store,
+    text_generator::{TextGenerator, get_text},
 };
 
 use super::{centered_rect_with_length, screens::Screen};
@@ -115,16 +120,6 @@ enum TextWidgetState {
     Done,
 }
 
-#[derive(Default)]
-pub enum TextStartEnd {
-    #[default]
-    Any,
-    // start at the beginning of a sentence
-    Start,
-    // start at the beginning and end at the end of a sentence
-    StartEnd,
-}
-
 #[derive(Debug)]
 enum AsyncTextSource {
     StaticText(Deferred<Option<String>>),
@@ -157,7 +152,7 @@ impl AsyncTextSource {
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        start: TextStartEnd,
+        start: StartEndSentence,
     ) -> Self {
         let path_source = path_source
             .as_ref()
@@ -175,7 +170,7 @@ impl AsyncTextSource {
 
                 let real_offset = (total_n_words as f64 * offset.unwrap_or(0.0)) as usize;
                 text.map(|text| match (number_words, start) {
-                    (None, TextStartEnd::Any) => text
+                    (None, StartEndSentence::Any) => text
                         .split_whitespace()
                         .skip(real_offset)
                         .collect::<Vec<&str>>()
@@ -187,7 +182,7 @@ impl AsyncTextSource {
                         .skip(1)
                         .collect::<Vec<&str>>()
                         .join(" "),
-                    (Some(n_words), TextStartEnd::Any) => {
+                    (Some(n_words), StartEndSentence::Any) => {
                         let max_offset = if n_words >= total_n_words {
                             0
                         } else {
@@ -200,7 +195,7 @@ impl AsyncTextSource {
                             .collect::<Vec<&str>>()
                             .join(" ")
                     }
-                    (Some(n_words), TextStartEnd::Start) => {
+                    (Some(n_words), StartEndSentence::Start) => {
                         let max_offset = if n_words >= total_n_words {
                             0
                         } else {
@@ -215,7 +210,7 @@ impl AsyncTextSource {
                             .collect::<Vec<&str>>()
                             .join(" ")
                     }
-                    (Some(n_words), TextStartEnd::StartEnd) => {
+                    (Some(n_words), StartEndSentence::StartEnd) => {
                         let max_offset = if n_words >= total_n_words {
                             0
                         } else {
@@ -330,7 +325,7 @@ impl TextWidget {
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<TextStartEnd>,
+        text_start_end: Option<StartEndSentence>,
         seed: Option<u64>,
     ) -> Self {
         match origin {
@@ -343,12 +338,13 @@ impl TextWidget {
                 let dir_path = PathBuf::from(PATH_TEXTS);
                 let path_source = dir_path.join(filename);
                 Self::from_text(
-                path_source,
-                dispatcher_tx,
-                number_words,
-                offset,
-                text_start_end,
-            )},
+                    path_source,
+                    dispatcher_tx,
+                    number_words,
+                    offset,
+                    text_start_end,
+                )
+            }
         }
     }
 
@@ -403,7 +399,7 @@ impl TextWidget {
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<TextStartEnd>,
+        text_start_end: Option<StartEndSentence>,
     ) -> Self {
         let async_text_source = AsyncTextSource::from_text(
             path_source,
@@ -773,7 +769,7 @@ impl TextWidgetComponent {
         filename: String,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<TextStartEnd>,
+        text_start_end: Option<StartEndSentence>,
         seed: Option<u64>,
     ) -> Self {
         let clone_dispatcher_tx = dispatcher_tx.clone();

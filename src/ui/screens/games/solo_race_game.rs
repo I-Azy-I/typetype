@@ -16,7 +16,7 @@ use crate::{
     ui::{
         clock::ClockWidget,
         screens::IsScreen,
-        text::{SettingsText, TextStartEnd, TextWidgetComponent},
+        text::{SettingsText, TextWidgetComponent},
     },
     win_data::{GameMod, RaceData, WinData},
 };
@@ -52,14 +52,22 @@ impl ScreenSoloRaceGameScreen {
     pub fn load_settings(&mut self) {
         self.start_time = None;
 
-        let (text_origin, number_words, seed, keep_seed, path_source) = {
+        let (text_origin, number_words, seed, keep_seed, path_source, start_end) = {
             let seed = self.shr_settings.borrow().game_settings.seed;
             let keep_seed = self.shr_settings.borrow().game_settings.keep_seed;
             let race_game_settings = &self.shr_settings.borrow().game_settings.race_game_settings;
             let text_origin = race_game_settings.text_origin.clone();
             let number_words = race_game_settings.number_words;
             let path_source = race_game_settings.filename.clone();
-            (text_origin, number_words, seed, keep_seed, path_source)
+            let start_end = race_game_settings.start_end_sentence;
+            (
+                text_origin,
+                number_words,
+                seed,
+                keep_seed,
+                path_source,
+                start_end,
+            )
         };
 
         let seed = if !keep_seed || seed.is_none() {
@@ -86,7 +94,7 @@ impl ScreenSoloRaceGameScreen {
             path_source,
             Some(number_words),
             offset,
-            Some(TextStartEnd::Start),
+            Some(start_end),
             Some(seed),
         ));
     }

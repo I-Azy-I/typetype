@@ -10,12 +10,12 @@ use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::Settings,
+    settings::{Settings, StartEndSentence},
     stores::Store,
     ui::{
         clock::ClockWidget,
         screens::IsScreen,
-        text::{SettingsText, TextStartEnd, TextWidgetComponent},
+        text::{SettingsText, TextWidgetComponent},
     },
     win_data::WinData,
 };
@@ -62,7 +62,7 @@ impl ScreenSoloInfiniteGameComponent {
             String::from(""),
             Some(number_words),
             None,
-            Some(TextStartEnd::Start),
+            Some(StartEndSentence::Start),
             None,
         ));
     }

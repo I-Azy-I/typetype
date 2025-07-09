@@ -29,7 +29,7 @@ impl SoloGamesMenuScreen {
                 .collect(),
             vec![
                 Action::AskChangeToScreen(Screen::SoloRaceGame),
-                Action::AskChangeToScreen(Screen::SoloRaceSettingScreen),
+                Action::AskChangeToScreen(Screen::SoloRaceSetting),
             ],
         );
         let entry_clock = MutipleEntry::new(
@@ -37,7 +37,7 @@ impl SoloGamesMenuScreen {
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
-            vec![Action::AskChangeToScreen(Screen::DebugMenu), Action::None],
+            vec![Action::AskChangeToScreen(Screen::DebugMenu), Action::AskChangeToScreen(Screen::SoloClockSetting)],
         );
         let entry_inifinite = MutipleEntry::new(
             ["Infinite", "Settings"]
@@ -46,7 +46,7 @@ impl SoloGamesMenuScreen {
                 .collect(),
             vec![
                 Action::AskChangeToScreen(Screen::SoloInfiniteGame),
-                Action::None,
+                Action::AskChangeToScreen(Screen::SoloInfiniteSetting),
             ],
         );
         let list_store = MenuMultipleListComponent::new(
@@ -61,7 +61,6 @@ impl SoloGamesMenuScreen {
             list_store,
         }
     }
-   
 }
 
 impl Store for SoloGamesMenuScreen {
