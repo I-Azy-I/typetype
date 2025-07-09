@@ -19,12 +19,14 @@ pub struct InfiniteData {
 }
 #[derive(Default, Debug, Clone)]
 pub struct RaceData {
+    pub skip: bool,
     pub time: Duration,
     pub n_words: usize,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct ClockData {
-    pub time: Duration,
+    pub skip: bool,
+    pub time: usize,
     pub n_words: usize,
 }

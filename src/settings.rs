@@ -18,7 +18,7 @@ pub struct GameSettings {
     pub seed: Option<u64>,
     pub clock_game_settings: ClockGameSettings,
     pub race_game_settings: RaceGameSettings,
-    pub infinite_game_settings: InfiniteGameSettings
+    pub infinite_game_settings: InfiniteGameSettings,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -26,7 +26,7 @@ pub enum TextOrigin {
     Generated,
     Text(OffsetText),
 }
-#[derive(Serialize, Deserialize,Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct InfiniteGameSettings {
     pub text_origin: TextOrigin,
     pub filename: String,

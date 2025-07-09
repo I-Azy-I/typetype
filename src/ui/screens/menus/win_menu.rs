@@ -13,7 +13,7 @@ use crate::{
     settings::Settings,
     stores::Store,
     ui::{list::HorizontalList, screens::IsScreen},
-    win_data::{RaceData, WinData},
+    win_data::{ClockData, RaceData, WinData},
 };
 
 use super::super::{super::*, Screen};
@@ -79,22 +79,69 @@ impl WinMenuScreen {
         area: Rect,
         buf: &mut ratatui::prelude::Buffer,
     ) {
-        let time = race_data.time;
-        let average_wpm = (race_data.n_words as f32) * 60.0 / race_data.time.as_secs_f32();
+        if race_data.skip {
+            let text = "Game Skipped";
+            let line = Span::raw(text).into_centered_line();
+            line.render(area, buf);
+        } else {
+            let time = race_data.time;
+            let average_wpm = (race_data.n_words as f32) * 60.0 / race_data.time.as_secs_f32();
 
-        let text_time =
-            Span::raw(format!("time: {:.2} seconds", time.as_secs_f32())).into_centered_line();
-        let text_average_wpm =
-            Span::raw(format!("average wpm: {:.0}", average_wpm)).into_centered_line();
+            let text_time =
+                Span::raw(format!("time: {:.2} seconds", time.as_secs_f32())).into_centered_line();
+            let text_average_wpm =
+                Span::raw(format!("average wpm: {:.0}", average_wpm)).into_centered_line();
 
-        let v_data_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(1), Constraint::Length(1)])
-            .split(area);
-        text_time.render(v_data_layout[0], buf);
-        text_average_wpm.render(v_data_layout[1], buf);
+            let v_data_layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![Constraint::Length(1), Constraint::Length(1)])
+                .split(area);
+            text_time.render(v_data_layout[0], buf);
+            text_average_wpm.render(v_data_layout[1], buf);
+        }
     }
+    fn win_screen_clock(
+        &self,
+        clock_data: &ClockData,
+        area: Rect,
+        buf: &mut ratatui::prelude::Buffer,
+    ) {
+        if clock_data.skip {
+            let text = "Game Skipped";
+            let line = Span::raw(text).into_centered_line();
+            line.render(area, buf);
+        } else {
+            let time = clock_data.time;
+            let n_words = clock_data.n_words;
+            let average_wpm = (n_words as f32) * 60.0 / time as f32;
 
+            let text_time = Span::raw(format!("number of correctly typed words: {:}", n_words))
+                .into_centered_line();
+            let text_average_wpm =
+                Span::raw(format!("average wpm: {:.0}", average_wpm)).into_centered_line();
+
+            let v_data_layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(vec![Constraint::Length(1), Constraint::Length(1)])
+                .split(area);
+            text_time.render(v_data_layout[0], buf);
+            text_average_wpm.render(v_data_layout[1], buf);
+        }
+    }
+    fn new_game(&self) {
+        match &self.shr_win_data.borrow().game {
+            crate::win_data::GameMod::None => self
+                .send(Action::EscPressed)
+                .expect("to be able to send action"),
+            crate::win_data::GameMod::Infinite(_) => todo!(),
+            crate::win_data::GameMod::Race(_) => self
+                .send(Action::AskChangeToScreen(Screen::SoloRaceGame))
+                .expect("to be able to send action"),
+            crate::win_data::GameMod::Clock(_) => self
+                .send(Action::AskChangeToScreen(Screen::SoloClockGame))
+                .expect("to be able to send action"),
+        }
+    }
     fn option_selected(&self) {
         match self.choice_state {
             SelectedOption::Leave => {
@@ -104,13 +151,11 @@ impl WinMenuScreen {
             }
             SelectedOption::Same => {
                 self.shr_settings.borrow_mut().game_settings.keep_seed = true;
-                self.send(Action::AskChangeToScreen(Screen::SoloRaceGame))
-                    .expect("to be able to send action")
+                self.new_game();
             }
             SelectedOption::Next => {
                 self.shr_settings.borrow_mut().game_settings.keep_seed = false;
-                self.send(Action::AskChangeToScreen(Screen::SoloRaceGame))
-                    .expect("to be able to send action")
+                self.new_game();
             }
         }
     }
@@ -157,7 +202,9 @@ impl Widget for &WinMenuScreen {
             crate::win_data::GameMod::Race(race_data) => {
                 self.win_screen_race(race_data, data_layout, buf)
             }
-            crate::win_data::GameMod::Clock(clock_data) => todo!(),
+            crate::win_data::GameMod::Clock(clock_data) => {
+                self.win_screen_clock(clock_data, data_layout, buf)
+            }
         }
 
         let block_choices = Block::default()

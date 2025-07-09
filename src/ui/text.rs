@@ -70,6 +70,26 @@ impl TypeChar {
             state: CharacterState::NotTyped,
         }
     }
+
+    fn is_space(&self) -> bool {
+        self.char == ' '
+    }
+
+    fn is_typed(&self) -> bool {
+        matches!(self.state, CharacterState::Typed)
+    }
+    fn is_incorrect(&self) -> bool {
+        matches!(self.state, CharacterState::Incorrect)
+    }
+
+    fn is_not_typed(&self) -> bool {
+        matches!(self.state, CharacterState::NotTyped)
+            || matches!(self.state, CharacterState::Selected)
+    }
+
+    fn is_cursor(&self) -> bool {
+        matches!(self.state, CharacterState::Selected)
+    }
 }
 
 impl<'a> From<TypeChar> for Span<'a> {
@@ -687,6 +707,32 @@ impl TextWidget {
         self.correct_position();
         self.current_width = new_max_width;
     }
+
+    pub fn get_n_words_correctly_typed(&self) -> usize {
+        if self.lines.is_none() {
+            return 0;
+        };
+
+        let mut counter = 0;
+        let mut is_correct = true;
+        'lines: for line in self.lines.as_ref().unwrap() {
+            for tchar in &line.line {
+                match tchar.state {
+                    CharacterState::Typed | CharacterState::Selected if tchar.is_space() => {
+                        if is_correct {
+                            counter += 1
+                        };
+                        is_correct = true
+                    }
+                    CharacterState::Incorrect => is_correct = false,
+                    CharacterState::NotTyped | CharacterState::Selected => break 'lines,
+                    CharacterState::Typed => {}
+                }
+            }
+            is_correct = true
+        }
+        counter
+    }
 }
 
 pub enum SettingsText {
@@ -924,6 +970,9 @@ impl TextWidgetComponent {
 
     pub fn wpm(&self) -> f32 {
         self.widget.wpm()
+    }
+    pub fn get_n_words_correctly_typed(&self) -> usize {
+        self.widget.get_n_words_correctly_typed()
     }
 }
 

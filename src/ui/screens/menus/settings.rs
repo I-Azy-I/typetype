@@ -156,8 +156,12 @@ impl SourceSettingsSoloGameComponent {
         }
     }
 
-    pub fn selected_part(&self) -> SelectedPart {self.selected_part}
-     pub fn editing_part(&self) -> SelectedPart {self.editing_part}
+    pub fn selected_part(&self) -> SelectedPart {
+        self.selected_part
+    }
+    pub fn editing_part(&self) -> SelectedPart {
+        self.editing_part
+    }
     pub fn select_default(&mut self) {
         self.selected_part = SelectedPart::Generator
     }
@@ -239,12 +243,12 @@ impl Store for SourceSettingsSoloGameComponent {
         match action {
             Action::RightPressed => match self.editing_part {
                 SelectedPart::Generator => self.next_generator(),
-                SelectedPart::Source => {},
-                SelectedPart::None => {},
+                SelectedPart::Source => {}
+                SelectedPart::None => {}
             },
             Action::LeftPressed => match self.editing_part {
                 SelectedPart::Generator => self.previous_generator(),
-                SelectedPart::Source => {},
+                SelectedPart::Source => {}
                 SelectedPart::None => {}
             },
 
@@ -507,8 +511,11 @@ pub struct SoloRaceSettingScreen {
 
 impl SoloRaceSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let mut basic_settings =
-            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
+        let mut basic_settings = SourceSettingsSoloGameComponent::new(
+            dispatcher_tx.clone(),
+            settings.clone(),
+            GameMod::Race,
+        );
         basic_settings.select_default();
         SoloRaceSettingScreen {
             dispatcher_tx,
@@ -595,17 +602,23 @@ impl Store for SoloRaceSettingScreen {
         } else {
             match action {
                 Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
-                        self.source_settings.unselect();self.selected_part = RacePart::NumberWord},
+                    SelectedPart::Generator
+                        if !matches!(
+                            self.source_settings.editing_part(),
+                            SelectedPart::Generator
+                        ) =>
+                    {
+                        self.source_settings.unselect();
+                        self.selected_part = RacePart::NumberWord
+                    }
                     SelectedPart::Source => {
                         self.source_settings.unselect();
-                        self.selected_part = RacePart::StartEnd;}
-                    SelectedPart::Generator | SelectedPart::None => {},
-            },
-            _ => {}
+                        self.selected_part = RacePart::StartEnd;
+                    }
+                    SelectedPart::Generator | SelectedPart::None => {}
+                },
+                _ => {}
             };
-            
-            
         }
     }
 }
@@ -745,8 +758,6 @@ impl TimeCock {
     }
 }
 
-
-
 #[derive(Debug, Default, Clone, Copy)]
 enum ClockPart {
     NumberWord,
@@ -768,8 +779,11 @@ pub struct SoloClockSettingScreen {
 
 impl SoloClockSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let mut basic_settings =
-            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
+        let mut basic_settings = SourceSettingsSoloGameComponent::new(
+            dispatcher_tx.clone(),
+            settings.clone(),
+            GameMod::Race,
+        );
         basic_settings.select_default();
         SoloClockSettingScreen {
             dispatcher_tx,
@@ -856,17 +870,23 @@ impl Store for SoloClockSettingScreen {
         } else {
             match action {
                 Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
-                        self.source_settings.unselect();self.selected_part = ClockPart::NumberWord},
+                    SelectedPart::Generator
+                        if !matches!(
+                            self.source_settings.editing_part(),
+                            SelectedPart::Generator
+                        ) =>
+                    {
+                        self.source_settings.unselect();
+                        self.selected_part = ClockPart::NumberWord
+                    }
                     SelectedPart::Source => {
                         self.source_settings.unselect();
-                        self.selected_part = ClockPart::StartEnd;}
-                    SelectedPart::Generator | SelectedPart::None => {},
-            },
-            _ => {}
+                        self.selected_part = ClockPart::StartEnd;
+                    }
+                    SelectedPart::Generator | SelectedPart::None => {}
+                },
+                _ => {}
             };
-            
-            
         }
     }
 }
@@ -956,7 +976,6 @@ enum InfinitePart {
     StartEnd,
 }
 
-
 #[derive(Debug)]
 pub struct SoloInfiniteSettingScreen {
     dispatcher_tx: UnboundedSender<Action>,
@@ -969,8 +988,11 @@ pub struct SoloInfiniteSettingScreen {
 
 impl SoloInfiniteSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let mut basic_settings =
-            SourceSettingsSoloGameComponent::new(dispatcher_tx.clone(), settings.clone(), GameMod::Race);
+        let mut basic_settings = SourceSettingsSoloGameComponent::new(
+            dispatcher_tx.clone(),
+            settings.clone(),
+            GameMod::Race,
+        );
         basic_settings.select_default();
         SoloInfiniteSettingScreen {
             dispatcher_tx,
@@ -982,7 +1004,6 @@ impl SoloInfiniteSettingScreen {
         }
     }
 
-
     fn next_start_end(&mut self) {
         self.start_end_option = self.start_end_option.next();
     }
@@ -992,7 +1013,11 @@ impl SoloInfiniteSettingScreen {
 
     fn save_in_settings(&self) {
         self.source_settings.save_in_settings();
-        let settings_infinite = &mut self.settings.borrow_mut().game_settings.infinite_game_settings;
+        let settings_infinite = &mut self
+            .settings
+            .borrow_mut()
+            .game_settings
+            .infinite_game_settings;
         settings_infinite.start_end_sentence = self.start_end_option.setting_value();
     }
 }
@@ -1003,18 +1028,16 @@ impl Store for SoloInfiniteSettingScreen {
         if !self.source_settings.is_selected() {
             match action {
                 Action::DownPressed => match self.selected_part {
-                    InfinitePart::StartEnd if matches!(self.editing_part, InfinitePart::StartEnd) => {
+                    InfinitePart::StartEnd
+                        if matches!(self.editing_part, InfinitePart::StartEnd) =>
+                    {
                         self.next_start_end()
                     }
                     InfinitePart::StartEnd | InfinitePart::None => {}
                 },
                 Action::UpPressed => match self.editing_part {
                     InfinitePart::None => {}
-                    InfinitePart::StartEnd => {
-                        
-                            self.previous_start_end()
-                        
-                    }
+                    InfinitePart::StartEnd => self.previous_start_end(),
                 },
                 Action::RightPressed => match self.editing_part {
                     InfinitePart::None | InfinitePart::StartEnd => {}
@@ -1022,7 +1045,6 @@ impl Store for SoloInfiniteSettingScreen {
                 Action::LeftPressed => match self.editing_part {
                     InfinitePart::None | InfinitePart::StartEnd => {
                         match self.selected_part {
-
                             InfinitePart::None => unreachable!(),
                             InfinitePart::StartEnd => self.source_settings.select_generator(),
                         }
@@ -1039,17 +1061,23 @@ impl Store for SoloInfiniteSettingScreen {
         } else {
             match action {
                 Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator if !matches!(self.source_settings.editing_part(), SelectedPart::Generator)=> { 
-                        self.source_settings.unselect();self.selected_part = InfinitePart::StartEnd},
+                    SelectedPart::Generator
+                        if !matches!(
+                            self.source_settings.editing_part(),
+                            SelectedPart::Generator
+                        ) =>
+                    {
+                        self.source_settings.unselect();
+                        self.selected_part = InfinitePart::StartEnd
+                    }
                     SelectedPart::Source => {
                         self.source_settings.unselect();
-                        self.selected_part = InfinitePart::StartEnd;}
-                    SelectedPart::Generator | SelectedPart::None => {},
-            },
-            _ => {}
+                        self.selected_part = InfinitePart::StartEnd;
+                    }
+                    SelectedPart::Generator | SelectedPart::None => {}
+                },
+                _ => {}
             };
-            
-            
         }
     }
 }
@@ -1072,9 +1100,8 @@ impl Widget for &SoloInfiniteSettingScreen {
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(5),])
+            .constraints(vec![Constraint::Length(5)])
             .split(layout[1]);
-
 
         let block_start = {
             let block = Block::default()

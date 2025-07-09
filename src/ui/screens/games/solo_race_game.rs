@@ -26,27 +26,29 @@ use super::super::{super::*, Screen};
 const SCREEN: Screen = Screen::SoloRaceGame;
 
 #[derive(Debug)]
-pub struct ScreenSoloRaceGameScreen {
+pub struct SoloRaceGameScreen {
     screen: Screen,
     dispatcher_tx: UnboundedSender<Action>,
     text_component: Option<TextWidgetComponent>,
     start_time: Option<Instant>,
     shr_settings: Rc<RefCell<Settings>>,
     shr_win_data: Rc<RefCell<WinData>>,
+    done: bool,
 }
-impl ScreenSoloRaceGameScreen {
+impl SoloRaceGameScreen {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
         shr_settings: Rc<RefCell<Settings>>,
         shr_win_data: Rc<RefCell<WinData>>,
     ) -> Self {
-        ScreenSoloRaceGameScreen {
+        SoloRaceGameScreen {
             screen: SCREEN,
             dispatcher_tx,
             shr_settings,
             text_component: None,
             start_time: None,
             shr_win_data,
+            done: false,
         }
     }
     pub fn load_settings(&mut self) {
@@ -103,27 +105,26 @@ impl ScreenSoloRaceGameScreen {
         // edit data for end screen
 
         let game = GameMod::Race(RaceData {
-            time: Instant::now() - self.start_time.expect("time to have stated"),
+            skip: !self.done,
+            time: Instant::now() - self.start_time.unwrap_or(Instant::now()),
             n_words: self
-                .shr_settings
-                .borrow()
-                .game_settings
-                .race_game_settings
-                .number_words,
+                .text_component
+                .as_ref()
+                .map(|text| text.get_n_words_correctly_typed())
+                .unwrap_or(0),
         });
 
         {
             let mut shr_win_data = self.shr_win_data.borrow_mut();
             shr_win_data.game = game;
         }
-        self.send(Action::AskChangeToScreen(Screen::WinMenu))
-            .expect("to be able to change screen");
+
         self.start_time = None;
         self.text_component = None;
     }
 }
 
-impl Store for ScreenSoloRaceGameScreen {
+impl Store for SoloRaceGameScreen {
     fn update(&mut self, action: Action) {
         match action {
             Action::KeyPressed(_) if self.start_time.is_none() => {
@@ -137,17 +138,19 @@ impl Store for ScreenSoloRaceGameScreen {
         if let Some(text_component) = self.text_component.as_ref() {
             debug!("{}", text_component.is_done_correctly());
             if text_component.is_done_correctly() {
-                self.process_end();
+                self.done = true;
+                self.send(Action::AskChangeToScreen(Screen::WinMenu))
+                    .expect("to be able to change screen");
             }
         }
     }
 }
-impl SendAction for ScreenSoloRaceGameScreen {
+impl SendAction for SoloRaceGameScreen {
     fn send(&self, action: Action) -> Result<(), SendError<Action>> {
         self.dispatcher_tx.send(action)
     }
 }
-impl Widget for &mut ScreenSoloRaceGameScreen {
+impl Widget for &mut SoloRaceGameScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
@@ -186,6 +189,7 @@ impl Widget for &mut ScreenSoloRaceGameScreen {
         } else {
             ClockWidget::default()
         };
+
         clock.render(info_layout[0], buf);
 
         let wpm = self.text_component.as_ref().map(|w| w.wpm()).unwrap_or(0.0);
@@ -205,8 +209,12 @@ impl Widget for &mut ScreenSoloRaceGameScreen {
     }
 }
 
-impl IsScreen for ScreenSoloRaceGameScreen {
+impl IsScreen for SoloRaceGameScreen {
     fn open(&mut self) {
+        self.done = false;
         self.load_settings();
+    }
+    fn close(&mut self) {
+        self.process_end();
     }
 }

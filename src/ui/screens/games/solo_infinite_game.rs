@@ -25,20 +25,20 @@ use super::super::{super::*, Screen};
 const SCREEN: Screen = Screen::SoloInfiniteGame;
 
 #[derive(Debug)]
-pub struct ScreenSoloInfiniteGameComponent {
+pub struct SoloInfiniteGameScreen {
     screen: Screen,
     dispatcher_tx: UnboundedSender<Action>,
     text_component: Option<TextWidgetComponent>,
     start_time: Option<Instant>,
     settings: Rc<RefCell<Settings>>,
 }
-impl ScreenSoloInfiniteGameComponent {
+impl SoloInfiniteGameScreen {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
         settings: Rc<RefCell<Settings>>,
         win_data: Rc<RefCell<WinData>>,
     ) -> Self {
-        ScreenSoloInfiniteGameComponent {
+        SoloInfiniteGameScreen {
             screen: SCREEN,
             dispatcher_tx,
             settings,
@@ -68,7 +68,7 @@ impl ScreenSoloInfiniteGameComponent {
     }
 }
 
-impl Store for ScreenSoloInfiniteGameComponent {
+impl Store for SoloInfiniteGameScreen {
     fn update(&mut self, action: Action) {
         match action {
             // Action::AskOpenScreen(screen) if screen == self.screen => {
@@ -84,12 +84,12 @@ impl Store for ScreenSoloInfiniteGameComponent {
         }
     }
 }
-impl SendAction for ScreenSoloInfiniteGameComponent {
+impl SendAction for SoloInfiniteGameScreen {
     fn send(&self, action: Action) -> Result<(), SendError<Action>> {
         self.dispatcher_tx.send(action)
     }
 }
-impl Widget for &mut ScreenSoloInfiniteGameComponent {
+impl Widget for &mut SoloInfiniteGameScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
@@ -138,4 +138,4 @@ impl Widget for &mut ScreenSoloInfiniteGameComponent {
     }
 }
 
-impl IsScreen for ScreenSoloInfiniteGameComponent {}
+impl IsScreen for SoloInfiniteGameScreen {}

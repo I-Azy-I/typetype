@@ -37,7 +37,10 @@ impl SoloGamesMenuScreen {
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
-            vec![Action::AskChangeToScreen(Screen::DebugMenu), Action::AskChangeToScreen(Screen::SoloClockSetting)],
+            vec![
+                Action::AskChangeToScreen(Screen::SoloClockGame),
+                Action::AskChangeToScreen(Screen::SoloClockSetting),
+            ],
         );
         let entry_inifinite = MutipleEntry::new(
             ["Infinite", "Settings"]
