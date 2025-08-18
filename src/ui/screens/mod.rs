@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 use games::solo_race_game::SoloRaceGameScreen;
-use log::{debug, error, warn};
+use log::warn;
 use menus::solo_games_menu::SoloGamesMenuScreen;
 use menus::{first_menu::FirstMenuScreen, settings::SoloRaceSettingScreen};
 use ratatui::widgets::Widget;
@@ -14,7 +14,7 @@ use crate::ui::screens::games::solo_clock_game::SoloClockGameScreen;
 use crate::ui::screens::games::solo_infinite_game::SoloInfiniteGameScreen;
 use crate::ui::screens::menus::debug_menu::DebugMenuScreen;
 use crate::ui::screens::menus::settings::{SoloClockSettingScreen, SoloInfiniteSettingScreen};
-use crate::ui::screens::menus::win_menu::{self, WinMenuScreen};
+use crate::ui::screens::menus::win_menu::WinMenuScreen;
 use crate::win_data::WinData;
 use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
 

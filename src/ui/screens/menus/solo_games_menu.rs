@@ -7,7 +7,7 @@ use crate::{
     stores::Store,
     ui::{
         list::{MenuMultipleListComponent, MutipleEntry},
-        screens::{IsScreen, menus::settings::SoloRaceSettingScreen},
+        screens::IsScreen,
     },
 };
 

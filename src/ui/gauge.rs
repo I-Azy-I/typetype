@@ -1,5 +1,3 @@
-use std::mem;
-
 use ratatui::widgets::{LineGauge, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -48,9 +46,7 @@ impl<'a> SendAction for GaugeComponent<'a> {
 
 impl<'a> Store for GaugeComponent<'a> {
     fn update(&mut self, action: Action) {
-        match action {
-            _ => {}
-        }
+        {}
     }
 }
 

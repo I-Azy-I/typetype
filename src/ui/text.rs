@@ -5,11 +5,10 @@ use std::{
 };
 
 use async_deferred::Deferred;
-use futures::stream::Skip;
 use log::{debug, warn};
 use ratatui::{
     buffer::Buffer,
-    layout::{Offset, Rect},
+    layout::Rect,
     style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{StatefulWidget, Widget},
@@ -21,7 +20,7 @@ use crate::{
     action::Action,
     config::{PATH_LANGUAGES, PATH_TEXTS},
     flux::SendAction,
-    settings::{OffsetText, StartEndSentence, TextOrigin},
+    settings::{StartEndSentence, TextOrigin},
     stores::Store,
     text_generator::{TextGenerator, get_text},
 };
@@ -203,11 +202,7 @@ impl AsyncTextSource {
                         .collect::<Vec<&str>>()
                         .join(" "),
                     (Some(n_words), StartEndSentence::Any) => {
-                        let max_offset = if n_words >= total_n_words {
-                            0
-                        } else {
-                            total_n_words - n_words
-                        };
+                        let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         text.split_whitespace()
                             .skip(real_offset)
@@ -216,11 +211,7 @@ impl AsyncTextSource {
                             .join(" ")
                     }
                     (Some(n_words), StartEndSentence::Start) => {
-                        let max_offset = if n_words >= total_n_words {
-                            0
-                        } else {
-                            total_n_words - n_words
-                        };
+                        let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         text.split_whitespace()
                             .skip(real_offset)
@@ -231,11 +222,7 @@ impl AsyncTextSource {
                             .join(" ")
                     }
                     (Some(n_words), StartEndSentence::StartEnd) => {
-                        let max_offset = if n_words >= total_n_words {
-                            0
-                        } else {
-                            total_n_words - n_words
-                        };
+                        let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         let mut counter_words = n_words + 1;
                         text.split_whitespace()
@@ -354,7 +341,7 @@ impl TextWidget {
                 let path_source = dir_path.join(filename);
                 Self::from_language(path_source, dispatcher_tx, number_words, seed)
             }
-            TextOrigin::Text(_) => {
+            TextOrigin::Text => {
                 let dir_path = PathBuf::from(PATH_TEXTS);
                 let path_source = dir_path.join(filename);
                 Self::from_text(
@@ -674,10 +661,7 @@ impl TextWidget {
             .expect("Lines vector should not be empty")
             .pop();
 
-        result_lines
-            .into_iter()
-            .map(|line| TypeLine::new(line))
-            .collect()
+        result_lines.into_iter().map(TypeLine::new).collect()
     }
 
     fn correct_position(&mut self) {

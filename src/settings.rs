@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-
-use ratatui::text;
 use serde::{Deserialize, Serialize};
 
 use crate::config::{DEFAULT_LANGUAGE, DEFAULT_TEXT};
@@ -24,7 +21,7 @@ pub struct GameSettings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TextOrigin {
     Generated,
-    Text(OffsetText),
+    Text, // should add StartEnd and StartingPoint in it
 }
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct InfiniteGameSettings {
@@ -39,13 +36,14 @@ pub struct ClockGameSettings {
     pub filename: String,
     pub time: usize,
     pub start_end_sentence: StartEndSentence,
+    pub starting_point: StartingPointSentence,
 }
 impl Default for ClockGameSettings {
     fn default() -> Self {
         let text_origin = TextOrigin::default();
         let filename = match text_origin {
             TextOrigin::Generated => DEFAULT_LANGUAGE,
-            TextOrigin::Text(_) => DEFAULT_TEXT,
+            TextOrigin::Text => DEFAULT_TEXT,
         };
 
         Self {
@@ -53,6 +51,7 @@ impl Default for ClockGameSettings {
             filename: String::from(filename),
             time: 30,
             start_end_sentence: StartEndSentence::default(),
+            starting_point: StartingPointSentence::default(),
         }
     }
 }
@@ -61,20 +60,22 @@ pub struct RaceGameSettings {
     pub text_origin: TextOrigin,
     pub filename: String,
     pub number_words: usize,
-    pub start_end_sentence: StartEndSentence,
+    pub start_end_sentence: StartEndSentence, // should be contain in text_origin
+    pub starting_point: StartingPointSentence, // should be contain in text_origin
 }
 impl Default for RaceGameSettings {
     fn default() -> Self {
         let text_origin = TextOrigin::default();
         let filename = match text_origin {
             TextOrigin::Generated => DEFAULT_LANGUAGE,
-            TextOrigin::Text(_) => DEFAULT_TEXT,
+            TextOrigin::Text => DEFAULT_TEXT,
         };
 
         Self {
             text_origin: Default::default(),
             filename: String::from(filename),
             number_words: 50,
+            starting_point: StartingPointSentence::default(),
             start_end_sentence: StartEndSentence::default(),
         }
     }
@@ -88,6 +89,12 @@ pub enum StartEndSentence {
     StartEnd,
 }
 
+#[derive(Serialize, Default, Deserialize, Debug, Clone, Copy)]
+pub enum StartingPointSentence {
+    #[default]
+    Beginning,
+    Random,
+}
 #[derive(Serialize, Default, Deserialize, Debug, Clone)]
 pub enum OffsetText {
     Beginning,
@@ -97,6 +104,6 @@ pub enum OffsetText {
 
 impl Default for TextOrigin {
     fn default() -> Self {
-        TextOrigin::Text(OffsetText::default())
+        TextOrigin::Text
     }
 }

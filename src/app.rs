@@ -3,7 +3,6 @@ use std::rc::Rc;
 use std::time::Instant;
 use std::{io, time::Duration};
 
-use log::debug;
 use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 

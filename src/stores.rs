@@ -1,4 +1,4 @@
-use crate::{action::Action, ui::screens::IsScreen};
+use crate::action::Action;
 
 pub trait Store {
     fn update(&mut self, action: Action);

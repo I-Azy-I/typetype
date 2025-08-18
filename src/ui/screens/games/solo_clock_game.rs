@@ -1,10 +1,7 @@
-use core::time;
-use log::debug;
 use rand::prelude::*;
 use ratatui::{
-    style::{Color, Style, Stylize},
     text::Span,
-    widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, StatefulWidget, Widget},
 };
 use std::{
     cell::RefCell,
@@ -23,7 +20,7 @@ use crate::{
         screens::IsScreen,
         text::{SettingsText, TextWidgetComponent},
     },
-    win_data::{ClockData, GameMod, RaceData, WinData},
+    win_data::{ClockData, GameMod, WinData},
 };
 
 use super::super::{super::*, Screen};
@@ -82,7 +79,7 @@ impl SoloClockGameScreen {
         };
 
         let offset = match text_origin {
-            TextOrigin::Text(OffsetText::Random) => {
+            TextOrigin::Text => { // TODO add beginning option
                 let mut r = StdRng::seed_from_u64(seed);
                 Some(r.random())
             }

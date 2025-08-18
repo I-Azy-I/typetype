@@ -1,7 +1,6 @@
 use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use ratatui::{
-    style::Stylize,
     text::Span,
     widgets::{Block, BorderType, Borders, StatefulWidget, Widget},
 };

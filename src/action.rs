@@ -1,4 +1,4 @@
-use crate::ui::{gauge, screens::Screen};
+use crate::ui::screens::Screen;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Action {

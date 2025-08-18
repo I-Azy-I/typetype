@@ -13,11 +13,11 @@ use crate::{
     action::Action,
     config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS},
     flux::SendAction,
-    settings::{OffsetText, Settings, StartEndSentence, TextOrigin},
+    settings::{OffsetText, Settings, StartEndSentence, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
         list::HorizontalList,
-        screens::{IsScreen, Screen, games::GameMod},
+        screens::{IsScreen, games::GameMod},
     },
 };
 
@@ -55,7 +55,7 @@ enum GeneratingOption {
 impl GeneratingOption {
     fn to_setting_param(self) -> TextOrigin {
         match self {
-            GeneratingOption::Text => TextOrigin::Text(OffsetText::Random),
+            GeneratingOption::Text => TextOrigin::Text,
             GeneratingOption::Language => TextOrigin::Generated,
         }
     }
@@ -491,11 +491,47 @@ impl StartEndSentenceState {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
+enum StartingPointState {
+    #[default]
+    Beginning,
+    Random,
+}
+impl StartingPointState {
+    fn next(self) -> Self {
+        match self {
+            Self::Beginning => Self::Random,
+            Self::Random => Self::Random,
+        }
+    }
+    fn previous(self) -> Self {
+        match self {
+            Self::Beginning => Self::Beginning,
+            Self::Random => Self::Beginning,
+        }
+    }
+    fn state(self) -> ListState {
+        let value = match self {
+            StartingPointState::Beginning => 0,
+            StartingPointState::Random => 1,
+        };
+        ListState::default().with_selected(Some(value))
+    }
+
+    fn setting_value(self) -> StartingPointSentence {
+        match self {
+            Self::Beginning => StartingPointSentence::Beginning,
+            Self::Random => StartingPointSentence::Random,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
 enum RacePart {
     NumberWord,
     #[default]
     None,
     StartEnd,
+    StartingPoint,
 }
 
 #[derive(Debug)]
@@ -505,6 +541,7 @@ pub struct SoloRaceSettingScreen {
     source_settings: SourceSettingsSoloGameComponent,
     chosen_length: NumberWord,
     start_end_option: StartEndSentenceState,
+    starting_point_option: StartingPointState,
     selected_part: RacePart,
     editing_part: RacePart,
 }
@@ -522,6 +559,7 @@ impl SoloRaceSettingScreen {
             settings,
             source_settings: basic_settings,
             start_end_option: StartEndSentenceState::default(),
+            starting_point_option: StartingPointState::default(),
             chosen_length: NumberWord::default(),
             selected_part: RacePart::default(),
             editing_part: RacePart::default(),
@@ -542,11 +580,19 @@ impl SoloRaceSettingScreen {
         self.start_end_option = self.start_end_option.previous();
     }
 
+    fn next_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.next();
+    }
+    fn previous_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.previous();
+    }
+
     fn save_in_settings(&self) {
         self.source_settings.save_in_settings();
         let settings_race = &mut self.settings.borrow_mut().game_settings.race_game_settings;
         settings_race.number_words = self.chosen_length.value();
         settings_race.start_end_sentence = self.start_end_option.setting_value();
+        settings_race.starting_point = self.starting_point_option.setting_value();
     }
 }
 
@@ -560,10 +606,20 @@ impl Store for SoloRaceSettingScreen {
                         self.editing_part = RacePart::None;
                         self.selected_part = RacePart::StartEnd
                     }
-                    RacePart::StartEnd if matches!(self.editing_part, RacePart::StartEnd) => {
-                        self.next_start_end()
+                    RacePart::StartEnd => {
+                        if matches!(self.editing_part, RacePart::StartEnd) {
+                            self.next_start_end()
+                        } else {
+                            self.editing_part = RacePart::None;
+                            self.selected_part = RacePart::StartingPoint
+                        }
                     }
-                    RacePart::StartEnd | RacePart::None => {}
+                    RacePart::StartingPoint
+                        if matches!(self.editing_part, RacePart::StartingPoint) =>
+                    {
+                        self.next_starting_point()
+                    }
+                    RacePart::StartingPoint | RacePart::None => {}
                 },
                 Action::UpPressed => match self.selected_part {
                     RacePart::NumberWord => {}
@@ -575,18 +631,26 @@ impl Store for SoloRaceSettingScreen {
                             self.selected_part = RacePart::NumberWord
                         }
                     }
+                    RacePart::StartingPoint => {
+                        if matches!(self.editing_part, RacePart::StartingPoint) {
+                            self.previous_starting_point()
+                        } else {
+                            self.selected_part = RacePart::StartEnd
+                        }
+                    }
                 },
                 Action::RightPressed => match self.editing_part {
                     RacePart::NumberWord => self.next_choosed_number_words(),
-                    RacePart::None | RacePart::StartEnd => {}
+                    RacePart::None | RacePart::StartEnd | RacePart::StartingPoint => {}
                 },
                 Action::LeftPressed => match self.editing_part {
                     RacePart::NumberWord => self.previous_choosed_number_words(),
-                    RacePart::None | RacePart::StartEnd => {
+                    RacePart::None | RacePart::StartEnd | RacePart::StartingPoint => {
                         match self.selected_part {
                             RacePart::NumberWord => self.source_settings.select_generator(),
                             RacePart::None => unreachable!(),
                             RacePart::StartEnd => self.source_settings.select_source(),
+                            RacePart::StartingPoint => self.source_settings.select_source(),
                         }
                         self.selected_part = RacePart::None;
                         self.editing_part = RacePart::None;
@@ -596,29 +660,24 @@ impl Store for SoloRaceSettingScreen {
                     RacePart::NumberWord => self.editing_part = RacePart::None,
                     RacePart::None => self.editing_part = self.selected_part,
                     RacePart::StartEnd => self.editing_part = RacePart::None,
+                    RacePart::StartingPoint => self.editing_part = RacePart::None,
                 },
                 _ => {}
             }
-        } else {
-            match action {
-                Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator
-                        if !matches!(
-                            self.source_settings.editing_part(),
-                            SelectedPart::Generator
-                        ) =>
-                    {
-                        self.source_settings.unselect();
-                        self.selected_part = RacePart::NumberWord
-                    }
-                    SelectedPart::Source => {
-                        self.source_settings.unselect();
-                        self.selected_part = RacePart::StartEnd;
-                    }
-                    SelectedPart::Generator | SelectedPart::None => {}
-                },
-                _ => {}
-            };
+        } else if let Action::RightPressed = action {
+            match self.source_settings.selected_part() {
+                SelectedPart::Generator
+                    if !matches!(self.source_settings.editing_part(), SelectedPart::Generator) =>
+                {
+                    self.source_settings.unselect();
+                    self.selected_part = RacePart::NumberWord
+                }
+                SelectedPart::Source => {
+                    self.source_settings.unselect();
+                    self.selected_part = RacePart::StartEnd;
+                }
+                SelectedPart::Generator | SelectedPart::None => {}
+            }
         }
     }
 }
@@ -641,7 +700,11 @@ impl Widget for &SoloRaceSettingScreen {
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(3), Constraint::Length(5)])
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Length(5),
+                Constraint::Length(4),
+            ])
             .split(layout[1]);
 
         let block_n_words_selection = {
@@ -657,6 +720,7 @@ impl Widget for &SoloRaceSettingScreen {
                 block
             }
         };
+
         let list = HorizontalList::new(
             NumberWord::get_list_option()
                 .into_iter()
@@ -667,6 +731,7 @@ impl Widget for &SoloRaceSettingScreen {
         .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
         list.render(layout[0], buf, &mut self.chosen_length.state());
 
+        // fit sentences
         let block_start = {
             let block = Block::default()
                 .title("Fit sentences")
@@ -685,6 +750,31 @@ impl Widget for &SoloRaceSettingScreen {
             .block(block_start)
             .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
         StatefulWidget::render(list_src, layout[1], buf, &mut self.start_end_option.state());
+
+        //starting point
+        let block_starting_point = {
+            let block = Block::default()
+                .title("Starting point")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, RacePart::StartingPoint) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, RacePart::StartingPoint) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Beginning", "Random"])
+            .block(block_starting_point)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(
+            list_src,
+            layout[2],
+            buf,
+            &mut self.starting_point_option.state(),
+        );
     }
 }
 impl SendAction for SoloRaceSettingScreen {
@@ -764,6 +854,7 @@ enum ClockPart {
     #[default]
     None,
     StartEnd,
+    StartingPoint,
 }
 
 #[derive(Debug)]
@@ -773,6 +864,7 @@ pub struct SoloClockSettingScreen {
     source_settings: SourceSettingsSoloGameComponent,
     chosen_time: TimeCock,
     start_end_option: StartEndSentenceState,
+    starting_point_option: StartingPointState,
     selected_part: ClockPart,
     editing_part: ClockPart,
 }
@@ -790,6 +882,7 @@ impl SoloClockSettingScreen {
             settings,
             source_settings: basic_settings,
             start_end_option: StartEndSentenceState::default(),
+            starting_point_option: StartingPointState::default(),
             chosen_time: TimeCock::default(),
             selected_part: ClockPart::default(),
             editing_part: ClockPart::default(),
@@ -809,12 +902,18 @@ impl SoloClockSettingScreen {
     fn previous_start_end(&mut self) {
         self.start_end_option = self.start_end_option.previous();
     }
-
+    fn next_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.next();
+    }
+    fn previous_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.previous();
+    }
     fn save_in_settings(&self) {
         self.source_settings.save_in_settings();
         let settings_clock = &mut self.settings.borrow_mut().game_settings.clock_game_settings;
         settings_clock.time = self.chosen_time.value();
         settings_clock.start_end_sentence = self.start_end_option.setting_value();
+        settings_clock.starting_point = self.starting_point_option.setting_value();
     }
 }
 
@@ -828,12 +927,22 @@ impl Store for SoloClockSettingScreen {
                         self.editing_part = ClockPart::None;
                         self.selected_part = ClockPart::StartEnd
                     }
-                    ClockPart::StartEnd if matches!(self.editing_part, ClockPart::StartEnd) => {
-                        self.next_start_end()
+                    ClockPart::StartEnd => {
+                        if matches!(self.editing_part, ClockPart::StartEnd) {
+                            self.next_start_end()
+                        } else {
+                            self.editing_part = ClockPart::None;
+                            self.selected_part = ClockPart::StartingPoint
+                        }
                     }
-                    ClockPart::StartEnd | ClockPart::None => {}
+                    ClockPart::StartingPoint
+                        if matches!(self.editing_part, ClockPart::StartingPoint) =>
+                    {
+                        self.next_starting_point()
+                    }
+                    ClockPart::StartingPoint | ClockPart::None => {}
                 },
-                Action::UpPressed => match self.selected_part {
+               Action::UpPressed => match self.selected_part {
                     ClockPart::NumberWord => {}
                     ClockPart::None => {}
                     ClockPart::StartEnd => {
@@ -843,18 +952,26 @@ impl Store for SoloClockSettingScreen {
                             self.selected_part = ClockPart::NumberWord
                         }
                     }
+                    ClockPart::StartingPoint => {
+                        if matches!(self.editing_part, ClockPart::StartingPoint) {
+                            self.previous_starting_point()
+                        } else {
+                            self.selected_part = ClockPart::StartEnd
+                        }
+                    }
                 },
                 Action::RightPressed => match self.editing_part {
                     ClockPart::NumberWord => self.next_choosed_time(),
-                    ClockPart::None | ClockPart::StartEnd => {}
+                    ClockPart::None | ClockPart::StartEnd | ClockPart::StartingPoint => {}
                 },
                 Action::LeftPressed => match self.editing_part {
                     ClockPart::NumberWord => self.previous_choosed_time(),
-                    ClockPart::None | ClockPart::StartEnd => {
+                    ClockPart::None | ClockPart::StartEnd | ClockPart::StartingPoint => {
                         match self.selected_part {
                             ClockPart::NumberWord => self.source_settings.select_generator(),
                             ClockPart::None => unreachable!(),
                             ClockPart::StartEnd => self.source_settings.select_source(),
+                            ClockPart::StartingPoint => self.source_settings.select_source(),
                         }
                         self.selected_part = ClockPart::None;
                         self.editing_part = ClockPart::None;
@@ -864,29 +981,24 @@ impl Store for SoloClockSettingScreen {
                     ClockPart::NumberWord => self.editing_part = ClockPart::None,
                     ClockPart::None => self.editing_part = self.selected_part,
                     ClockPart::StartEnd => self.editing_part = ClockPart::None,
+                    ClockPart::StartingPoint => self.editing_part = ClockPart::None,
                 },
                 _ => {}
             }
-        } else {
-            match action {
-                Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator
-                        if !matches!(
-                            self.source_settings.editing_part(),
-                            SelectedPart::Generator
-                        ) =>
-                    {
-                        self.source_settings.unselect();
-                        self.selected_part = ClockPart::NumberWord
-                    }
-                    SelectedPart::Source => {
-                        self.source_settings.unselect();
-                        self.selected_part = ClockPart::StartEnd;
-                    }
-                    SelectedPart::Generator | SelectedPart::None => {}
-                },
-                _ => {}
-            };
+        } else if let Action::RightPressed = action {
+            match self.source_settings.selected_part() {
+                SelectedPart::Generator
+                    if !matches!(self.source_settings.editing_part(), SelectedPart::Generator) =>
+                {
+                    self.source_settings.unselect();
+                    self.selected_part = ClockPart::NumberWord
+                }
+                SelectedPart::Source => {
+                    self.source_settings.unselect();
+                    self.selected_part = ClockPart::StartEnd;
+                }
+                SelectedPart::Generator | SelectedPart::None => {}
+            }
         }
     }
 }
@@ -909,7 +1021,7 @@ impl Widget for &SoloClockSettingScreen {
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(3), Constraint::Length(5)])
+            .constraints(vec![Constraint::Length(3), Constraint::Length(5),  Constraint::Length(4)])
             .split(layout[1]);
 
         let block_n_words_selection = {
@@ -953,6 +1065,32 @@ impl Widget for &SoloClockSettingScreen {
             .block(block_start)
             .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
         StatefulWidget::render(list_src, layout[1], buf, &mut self.start_end_option.state());
+
+        //starting point
+        let block_starting_point = {
+            let block = Block::default()
+                .title("Starting point")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, ClockPart::StartingPoint) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, ClockPart::StartingPoint) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Beginning", "Random"])
+            .block(block_starting_point)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(
+            list_src,
+            layout[2],
+            buf,
+            &mut self.starting_point_option.state(),
+        );
+
     }
 }
 impl SendAction for SoloClockSettingScreen {
@@ -1058,26 +1196,20 @@ impl Store for SoloInfiniteSettingScreen {
                 },
                 _ => {}
             }
-        } else {
-            match action {
-                Action::RightPressed => match self.source_settings.selected_part() {
-                    SelectedPart::Generator
-                        if !matches!(
-                            self.source_settings.editing_part(),
-                            SelectedPart::Generator
-                        ) =>
-                    {
-                        self.source_settings.unselect();
-                        self.selected_part = InfinitePart::StartEnd
-                    }
-                    SelectedPart::Source => {
-                        self.source_settings.unselect();
-                        self.selected_part = InfinitePart::StartEnd;
-                    }
-                    SelectedPart::Generator | SelectedPart::None => {}
-                },
-                _ => {}
-            };
+        } else if let Action::RightPressed = action {
+            match self.source_settings.selected_part() {
+                SelectedPart::Generator
+                    if !matches!(self.source_settings.editing_part(), SelectedPart::Generator) =>
+                {
+                    self.source_settings.unselect();
+                    self.selected_part = InfinitePart::StartEnd
+                }
+                SelectedPart::Source => {
+                    self.source_settings.unselect();
+                    self.selected_part = InfinitePart::StartEnd;
+                }
+                SelectedPart::Generator | SelectedPart::None => {}
+            }
         }
     }
 }

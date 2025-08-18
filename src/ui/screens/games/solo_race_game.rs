@@ -11,7 +11,7 @@ use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::{OffsetText, Settings, TextOrigin},
+    settings::{OffsetText, Settings, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
         clock::ClockWidget,
@@ -54,21 +54,17 @@ impl SoloRaceGameScreen {
     pub fn load_settings(&mut self) {
         self.start_time = None;
 
-        let (text_origin, number_words, seed, keep_seed, path_source, start_end) = {
-            let seed = self.shr_settings.borrow().game_settings.seed;
-            let keep_seed = self.shr_settings.borrow().game_settings.keep_seed;
-            let race_game_settings = &self.shr_settings.borrow().game_settings.race_game_settings;
-            let text_origin = race_game_settings.text_origin.clone();
-            let number_words = race_game_settings.number_words;
-            let path_source = race_game_settings.filename.clone();
-            let start_end = race_game_settings.start_end_sentence;
+        let (text_origin, number_words, seed, keep_seed, path_source, start_end, starting_point) = {
+            let settings = self.shr_settings.borrow();
+            let race_settings = &settings.game_settings.race_game_settings;
             (
-                text_origin,
-                number_words,
-                seed,
-                keep_seed,
-                path_source,
-                start_end,
+                race_settings.text_origin.clone(),
+                race_settings.number_words,
+                settings.game_settings.seed,
+                settings.game_settings.keep_seed,
+                race_settings.filename.clone(),
+                race_settings.start_end_sentence,
+                race_settings.starting_point,
             )
         };
 
@@ -82,10 +78,13 @@ impl SoloRaceGameScreen {
         };
 
         let offset = match text_origin {
-            TextOrigin::Text(OffsetText::Random) => {
-                let mut r = StdRng::seed_from_u64(seed);
-                Some(r.random())
-            }
+            TextOrigin::Text => match starting_point {
+                StartingPointSentence::Beginning => Some(0.0),
+                StartingPointSentence::Random => {
+                    let mut r = StdRng::seed_from_u64(seed);
+                    Some(r.random())
+                }
+            },
             _ => None,
         };
 
@@ -103,7 +102,6 @@ impl SoloRaceGameScreen {
 
     fn process_end(&mut self) {
         // edit data for end screen
-
         let game = GameMod::Race(RaceData {
             skip: !self.done,
             time: Instant::now() - self.start_time.unwrap_or(Instant::now()),
@@ -114,10 +112,7 @@ impl SoloRaceGameScreen {
                 .unwrap_or(0),
         });
 
-        {
-            let mut shr_win_data = self.shr_win_data.borrow_mut();
-            shr_win_data.game = game;
-        }
+        self.shr_win_data.borrow_mut().game = game;
 
         self.start_time = None;
         self.text_component = None;
@@ -136,8 +131,7 @@ impl Store for SoloRaceGameScreen {
             text.update(action);
         }
         if let Some(text_component) = self.text_component.as_ref() {
-            debug!("{}", text_component.is_done_correctly());
-            if text_component.is_done_correctly() {
+            if text_component.is_done_correctly() && !self.done {
                 self.done = true;
                 self.send(Action::AskChangeToScreen(Screen::WinMenu))
                     .expect("to be able to change screen");

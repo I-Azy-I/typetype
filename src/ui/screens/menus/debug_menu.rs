@@ -4,7 +4,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, dispatcher, flux::SendAction, stores::Store, ui::screens::IsScreen};
+use crate::{action::Action, flux::SendAction, stores::Store, ui::screens::IsScreen};
 
 use super::super::{super::*, Screen};
 
