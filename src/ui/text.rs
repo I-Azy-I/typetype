@@ -180,7 +180,7 @@ impl AsyncTextSource {
         ) -> (String, usize) {
             if total_n_words < n_words{
                             let iteration = n_words.div_ceil(total_n_words);
-                            let repeated = std::iter::repeat(text).take(iteration);
+                            let repeated = std::iter::repeat_n(text, iteration);
                             let text = repeated.collect::<Vec<String>>().join(" ");
                             (text, total_n_words * iteration + iteration - 1)  
                         } else {
@@ -218,10 +218,10 @@ impl AsyncTextSource {
                         
                         let words: Vec<&str> = text.split_whitespace().collect();
                         let mut skip_counter = 0;
-                        let mut iter = words.iter().skip(real_offset);
+                        let iter = words.iter().skip(real_offset);
                         if real_offset > 0 {
                     
-                            while let Some(c) = iter.next() {
+                            for c in iter {
                                 if !c.ends_with('.') {
                                     skip_counter += 1;
                                 } else {
@@ -249,7 +249,7 @@ impl AsyncTextSource {
                         words
                             .iter()
                             .skip(real_offset)
-                            .chain(words.iter().take(n_words.checked_sub(words.len() - real_offset).unwrap_or(0)))
+                            .chain(words.iter().take(n_words.saturating_sub(words.len() - real_offset)))
                             .take(n_words)
                             .copied()
                             .collect::<Vec<&str>>()
@@ -261,9 +261,9 @@ impl AsyncTextSource {
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         let words: Vec<&str> = text.split_whitespace().collect();
                         let mut skip_counter = 0;
-                        let mut iter = words.iter().skip(real_offset);
+                        let iter = words.iter().skip(real_offset);
                         if real_offset > 0 {
-                            while let Some(c) = iter.next() {
+                            for c in iter {
                                 if !c.ends_with('.') {
                                     skip_counter += 1;
                                 } else {
@@ -276,7 +276,7 @@ impl AsyncTextSource {
                         words
                             .iter()
                             .skip(real_offset + skip_counter)
-                            .chain(words.iter().take(n_words.checked_sub(words.len() - (real_offset + skip_counter)).unwrap_or(0)))
+                            .chain(words.iter().take(n_words.saturating_sub(words.len() - (real_offset + skip_counter))))
                             .take(n_words)
                             .copied()
                             .collect::<Vec<&str>>()
