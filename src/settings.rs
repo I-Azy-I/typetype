@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::config::{DEFAULT_LANGUAGE, DEFAULT_TEXT};
 
 pub const PATH_SETTINGS: &str = "settings/";
 

@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-use log::debug;
 use ratatui::{
     style::Style,
     text::Span,

@@ -1,4 +1,3 @@
-use log::debug;
 use rand::prelude::*;
 use ratatui::{
     style::{Color, Style, Stylize},
@@ -15,7 +14,7 @@ use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::{OffsetText, Settings, StartingPointSentence, TextOrigin},
+    settings::{Settings, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
         clock::ClockWidget,

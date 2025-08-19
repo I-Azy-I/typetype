@@ -5,7 +5,6 @@ use log::{debug, warn};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
-    text::Text,
     widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};
@@ -14,7 +13,7 @@ use crate::{
     action::Action,
     config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS},
     flux::SendAction,
-    settings::{OffsetText, Settings, StartEndSentence, StartingPointSentence, TextOrigin},
+    settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
         list::HorizontalList,
