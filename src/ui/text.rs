@@ -173,6 +173,21 @@ impl AsyncTextSource {
         offset: Option<f64>,
         start: StartEndSentence,
     ) -> Self {
+        fn extend_text_if_needed(
+            text: String,
+            n_words: usize,
+            total_n_words: usize
+        ) -> (String, usize) {
+            if total_n_words < n_words{
+                            let iteration = n_words.div_ceil(total_n_words);
+                            let repeated = std::iter::repeat(text).take(iteration);
+                            let text = repeated.collect::<Vec<String>>().join(" ");
+                            (text, total_n_words * iteration + iteration - 1)  
+                        } else {
+                            (text, total_n_words)
+                        }
+        }
+
         let path_source = path_source
             .as_ref()
             .to_str()
@@ -227,6 +242,7 @@ impl AsyncTextSource {
                             .join(" ")
                        },
                     (Some(n_words), StartEndSentence::Any) => {
+                        let (text, total_n_words) = extend_text_if_needed(text, n_words, total_n_words);
                         let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         let words: Vec<&str> = text.split_whitespace().collect();
@@ -240,6 +256,7 @@ impl AsyncTextSource {
                             .join(" ")
                     }
                     (Some(n_words), StartEndSentence::Start) => {
+                        let (text, total_n_words) = extend_text_if_needed(text, n_words, total_n_words);
                         let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         let words: Vec<&str> = text.split_whitespace().collect();
@@ -268,6 +285,7 @@ impl AsyncTextSource {
                     
                     }
                     (Some(n_words), StartEndSentence::StartEnd) => {
+                        let (text, total_n_words) = extend_text_if_needed(text, n_words, total_n_words);
                         let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
                         let mut counter_words = n_words + 1;
@@ -533,7 +551,7 @@ impl TextWidget {
                 let lines = std::mem::take(&mut self.lines);
                 let existing_chars = if let Some(lines) = lines {
                     let existing_chars = lines.into_iter().flat_map(|tlist| tlist.line);
-                    Some(existing_chars)
+                    Some(existing_chars) 
                 } else {
                     None
                 };
@@ -567,7 +585,15 @@ impl TextWidget {
                     ));
                 }
             }
-            AsyncTextSource::StaticText(_async_cache) => todo!(),
+            AsyncTextSource::StaticText(async_cache) => {
+                todo!()
+                // assert!(async_cache.is_ready());
+                // let text = async_cache.try_get().as_ref().unwrap().as_ref().expect("Text should be available");
+                // for _ in 0..batch_size.div_ceil(text.len() as u16) {
+
+                // }
+
+            },
         }
     }
 
