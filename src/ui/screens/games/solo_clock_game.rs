@@ -13,14 +13,14 @@ use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 use crate::{
     action::Action,
     flux::SendAction,
-    settings::{OffsetText, Settings, TextOrigin},
+    settings::{OffsetText, Settings, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
         clock::ClockWidget,
         screens::IsScreen,
         text::{SettingsText, TextWidgetComponent},
     },
-    win_data::{ClockData, GameMod, WinData},
+    win_data::{ClockData, GameModEndResult, WinData},
 };
 
 use super::super::{super::*, Screen};
@@ -58,15 +58,18 @@ impl SoloClockGameScreen {
     pub fn load_settings(&mut self) {
         self.start_time = None;
 
-        let (text_origin, time, seed, keep_seed, path_source, start_end) = {
-            let seed = self.shr_settings.borrow().game_settings.seed;
-            let keep_seed = self.shr_settings.borrow().game_settings.keep_seed;
-            let clock_game_settings = &self.shr_settings.borrow().game_settings.clock_game_settings;
-            let text_origin = clock_game_settings.text_origin.clone();
-            let time = clock_game_settings.time;
-            let path_source = clock_game_settings.filename.clone();
-            let start_end = clock_game_settings.start_end_sentence;
-            (text_origin, time, seed, keep_seed, path_source, start_end)
+        let (text_origin, time, seed, keep_seed, path_source) = {
+            let settings = self.shr_settings.borrow();
+            let text_settings = &settings.game_settings.text_settings;
+            let clock_settings = &settings.game_settings.clock_game_settings;
+
+          (
+                text_settings.text_origin.clone(),
+                clock_settings.time,
+                settings.game_settings.seed,
+                settings.game_settings.keep_seed,
+                text_settings.filename.clone(),
+            )
         };
 
         let seed = if !keep_seed || seed.is_none() {
@@ -77,12 +80,15 @@ impl SoloClockGameScreen {
         } else {
             seed.unwrap()
         };
-
+        
         let offset = match text_origin {
-            TextOrigin::Text => { // TODO add beginning option
-                let mut r = StdRng::seed_from_u64(seed);
-                Some(r.random())
-            }
+            TextOrigin::Text { start_end_sentence, starting_point } => match starting_point {
+                StartingPointSentence::Beginning => Some(0.0),
+                StartingPointSentence::Random => {
+                    let mut r = StdRng::seed_from_u64(seed);
+                    Some(r.random())
+                }
+            },
             _ => None,
         };
 
@@ -103,7 +109,7 @@ impl SoloClockGameScreen {
     fn process_end(&mut self) {
         // edit data for end screen
 
-        let game = GameMod::Clock(ClockData {
+        let game = GameModEndResult::Clock(ClockData {
             skip: !self.done,
             time: self
                 .start_time

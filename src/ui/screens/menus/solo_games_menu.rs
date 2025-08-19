@@ -52,10 +52,26 @@ impl SoloGamesMenuScreen {
                 Action::AskChangeToScreen(Screen::SoloInfiniteSetting),
             ],
         );
+
+        let text_settting_entry = MutipleEntry::new(
+            ["Settings", "test"]
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+            vec![
+                Action::AskChangeToScreen(Screen::SoloTextSettings),
+                Action::AskChangeToScreen(Screen::SoloTextSettings),
+            ],
+        );
         let list_store = MenuMultipleListComponent::new(
             "Select your game mod".to_string(),
             dispatcher_tx.clone(),
-            vec![entry_speed, entry_clock, entry_inifinite],
+            vec![
+                entry_speed,
+                entry_clock,
+                entry_inifinite,
+                text_settting_entry,
+            ],
             vec![Constraint::Percentage(100), Constraint::Length(10)],
             SCREEN,
         );

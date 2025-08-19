@@ -16,68 +16,44 @@ pub struct GameSettings {
     pub clock_game_settings: ClockGameSettings,
     pub race_game_settings: RaceGameSettings,
     pub infinite_game_settings: InfiniteGameSettings,
+    pub text_settings: TextSettings,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TextOrigin {
-    Generated,
-    Text, // should add StartEnd and StartingPoint in it
-}
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct InfiniteGameSettings {
+pub struct TextSettings {
     pub text_origin: TextOrigin,
-    pub filename: String,
-    pub start_end_sentence: StartEndSentence,
+    pub filename: Option<String>,
 }
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub enum TextOrigin {
+    #[default]
+    Language,
+    Text {
+        start_end_sentence: StartEndSentence,
+        starting_point: StartingPointSentence,
+    }, // should add StartEnd and StartingPoint in it
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct InfiniteGameSettings {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClockGameSettings {
-    pub text_origin: TextOrigin,
-    pub filename: String,
     pub time: usize,
-    pub start_end_sentence: StartEndSentence,
-    pub starting_point: StartingPointSentence,
 }
 impl Default for ClockGameSettings {
     fn default() -> Self {
-        let text_origin = TextOrigin::default();
-        let filename = match text_origin {
-            TextOrigin::Generated => DEFAULT_LANGUAGE,
-            TextOrigin::Text => DEFAULT_TEXT,
-        };
-
-        Self {
-            text_origin: Default::default(),
-            filename: String::from(filename),
-            time: 30,
-            start_end_sentence: StartEndSentence::default(),
-            starting_point: StartingPointSentence::default(),
-        }
+        Self { time: 30 }
     }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RaceGameSettings {
-    pub text_origin: TextOrigin,
-    pub filename: String,
     pub number_words: usize,
-    pub start_end_sentence: StartEndSentence, // should be contain in text_origin
-    pub starting_point: StartingPointSentence, // should be contain in text_origin
 }
 impl Default for RaceGameSettings {
     fn default() -> Self {
-        let text_origin = TextOrigin::default();
-        let filename = match text_origin {
-            TextOrigin::Generated => DEFAULT_LANGUAGE,
-            TextOrigin::Text => DEFAULT_TEXT,
-        };
-
-        Self {
-            text_origin: Default::default(),
-            filename: String::from(filename),
-            number_words: 50,
-            starting_point: StartingPointSentence::default(),
-            start_end_sentence: StartEndSentence::default(),
-        }
+        Self { number_words: 50 }
     }
 }
 
@@ -100,10 +76,4 @@ pub enum OffsetText {
     Beginning,
     #[default]
     Random,
-}
-
-impl Default for TextOrigin {
-    fn default() -> Self {
-        TextOrigin::Text
-    }
 }

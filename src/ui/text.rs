@@ -189,37 +189,83 @@ impl AsyncTextSource {
 
                 let real_offset = (total_n_words as f64 * offset.unwrap_or(0.0)) as usize;
                 text.map(|text| match (number_words, start) {
-                    (None, StartEndSentence::Any) => text
-                        .split_whitespace()
-                        .skip(real_offset)
-                        .collect::<Vec<&str>>()
-                        .join(" "),
-                    (None, _) => text
-                        .split_whitespace()
-                        .skip(real_offset)
-                        .skip_while(|c| !c.ends_with('.'))
-                        .skip(1)
-                        .collect::<Vec<&str>>()
-                        .join(" "),
+                    (None, StartEndSentence::Any) => {
+                        let words: Vec<&str> = text.split_whitespace().collect();
+                        words
+                            .iter()
+                            .skip(real_offset)
+                            .chain(words.iter().take(real_offset))
+                            .copied()
+                            .collect::<Vec<&str>>()
+                            .join(" ")
+                    }
+                    (None, _) => {
+                        
+                        let words: Vec<&str> = text.split_whitespace().collect();
+                        let mut skip_counter = 0;
+                        let mut iter = words.iter().skip(real_offset);
+                        if real_offset > 0 {
+                    
+                            while let Some(c) = iter.next() {
+                                if !c.ends_with('.') {
+                                    skip_counter += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            skip_counter += 1;
+                        }
+                       
+                    
+                        
+                        words
+                            .iter()
+                            .skip(real_offset + skip_counter)
+                            .chain(words.iter().take(real_offset + skip_counter))
+                            .copied()
+                            .collect::<Vec<&str>>()
+                            .join(" ")
+                       },
                     (Some(n_words), StartEndSentence::Any) => {
                         let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
-                        text.split_whitespace()
+                        let words: Vec<&str> = text.split_whitespace().collect();
+                        words
+                            .iter()
                             .skip(real_offset)
+                            .chain(words.iter().take(n_words.checked_sub(words.len() - real_offset).unwrap_or(0)))
                             .take(n_words)
+                            .copied()
                             .collect::<Vec<&str>>()
                             .join(" ")
                     }
                     (Some(n_words), StartEndSentence::Start) => {
                         let max_offset = total_n_words.saturating_sub(n_words);
                         let real_offset = std::cmp::min(max_offset, real_offset);
-                        text.split_whitespace()
-                            .skip(real_offset)
-                            .skip_while(|c| !c.ends_with('.'))
-                            .skip(1)
+                        let words: Vec<&str> = text.split_whitespace().collect();
+                        let mut skip_counter = 0;
+                        let mut iter = words.iter().skip(real_offset);
+                        if real_offset > 0 {
+                            while let Some(c) = iter.next() {
+                                if !c.ends_with('.') {
+                                    skip_counter += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            skip_counter += 1;
+                        }
+                        
+                        words
+                            .iter()
+                            .skip(real_offset + skip_counter)
+                            .chain(words.iter().take(n_words.checked_sub(words.len() - (real_offset + skip_counter)).unwrap_or(0)))
                             .take(n_words)
+                            .copied()
                             .collect::<Vec<&str>>()
                             .join(" ")
+                        
+                    
                     }
                     (Some(n_words), StartEndSentence::StartEnd) => {
                         let max_offset = total_n_words.saturating_sub(n_words);
@@ -332,16 +378,18 @@ impl TextWidget {
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<StartEndSentence>,
         seed: Option<u64>,
     ) -> Self {
         match origin {
-            TextOrigin::Generated => {
+            TextOrigin::Language => {
                 let dir_path = PathBuf::from(PATH_LANGUAGES);
                 let path_source = dir_path.join(filename);
                 Self::from_language(path_source, dispatcher_tx, number_words, seed)
             }
-            TextOrigin::Text => {
+            TextOrigin::Text {
+                start_end_sentence,
+                starting_point,
+            } => {
                 let dir_path = PathBuf::from(PATH_TEXTS);
                 let path_source = dir_path.join(filename);
                 Self::from_text(
@@ -349,7 +397,7 @@ impl TextWidget {
                     dispatcher_tx,
                     number_words,
                     offset,
-                    text_start_end,
+                    start_end_sentence,
                 )
             }
         }
@@ -406,14 +454,14 @@ impl TextWidget {
         dispatcher_tx: UnboundedSender<Action>,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<StartEndSentence>,
+        text_start_end: StartEndSentence,
     ) -> Self {
         let async_text_source = AsyncTextSource::from_text(
             path_source,
             dispatcher_tx,
             number_words,
             offset,
-            text_start_end.unwrap_or_default(),
+            text_start_end,
         );
         // let typechar_text: Vec<TypeChar> = get_text(name).await.unwrap()
         //     .chars()
@@ -799,7 +847,6 @@ impl TextWidgetComponent {
         filename: String,
         number_words: Option<usize>,
         offset: Option<f64>,
-        text_start_end: Option<StartEndSentence>,
         seed: Option<u64>,
     ) -> Self {
         let clone_dispatcher_tx = dispatcher_tx.clone();
@@ -813,7 +860,6 @@ impl TextWidgetComponent {
                 clone_dispatcher_tx,
                 number_words,
                 offset,
-                text_start_end,
                 seed,
             ),
             is_active: true,

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
-use games::solo_race_game::SoloRaceGameScreen;
+use games::solo_game::SoloGameScreen;
 use log::warn;
 use menus::solo_games_menu::SoloGamesMenuScreen;
 use menus::{first_menu::FirstMenuScreen, settings::SoloRaceSettingScreen};
@@ -10,10 +10,10 @@ use tokio::sync::mpsc::UnboundedSender;
 pub mod games;
 mod menus;
 
-use crate::ui::screens::games::solo_clock_game::SoloClockGameScreen;
-use crate::ui::screens::games::solo_infinite_game::SoloInfiniteGameScreen;
 use crate::ui::screens::menus::debug_menu::DebugMenuScreen;
-use crate::ui::screens::menus::settings::{SoloClockSettingScreen, SoloInfiniteSettingScreen};
+use crate::ui::screens::menus::settings::{
+    SoloClockSettingScreen, SoloInfiniteSettingScreen, TextSettingScreen,
+};
 use crate::ui::screens::menus::win_menu::WinMenuScreen;
 use crate::win_data::WinData;
 use crate::{action::Action, flux::SendAction, settings::Settings, stores::Store};
@@ -31,6 +31,7 @@ pub enum Screen {
     SoloInfiniteSetting,
     SoloClockGame,
     SoloClockSetting,
+    SoloTextSettings,
     WinMenu,
 
     DebugMenu,
@@ -43,10 +44,12 @@ impl Screen {
             Screen::SoloRaceGame => Some(Screen::WinMenu),
             Screen::SoloRaceSetting => Some(Screen::SoloGamesMenu),
             Screen::SoloInfiniteGame => Some(Screen::WinMenu),
+            Screen::SoloTextSettings => Some(Screen::SoloGamesMenu),
             Screen::DebugMenu => Some(Screen::FirstMenu),
             Screen::WinMenu => Some(Screen::FirstMenu),
             Screen::SoloClockGame => Some(Screen::WinMenu),
             Screen::SoloClockSetting => Some(Screen::SoloGamesMenu),
+
             Screen::SoloInfiniteSetting => Some(Screen::SoloGamesMenu),
         }
     }
@@ -61,14 +64,17 @@ pub struct ScreenRouterComponent {
     // screens
     first_menu: FirstMenuScreen,
     solo_game_menu: SoloGamesMenuScreen,
-    solo_speed_game: SoloRaceGameScreen,
+
+    solo_speed_game: SoloGameScreen,
     setting_solo_race: SoloRaceSettingScreen,
 
-    solo_infinte_game: SoloInfiniteGameScreen,
+    solo_infinte_game: SoloGameScreen,
     setting_solo_infinite: SoloInfiniteSettingScreen,
-    solo_clock_game: SoloClockGameScreen,
+
+    solo_clock_game: SoloGameScreen,
     setting_solo_clock: SoloClockSettingScreen,
 
+    solo_text_settings: TextSettingScreen,
     win_menu: WinMenuScreen,
     debug_menu: DebugMenuScreen,
 }
@@ -81,29 +87,33 @@ impl ScreenRouterComponent {
         let first_menu = FirstMenuScreen::new(dispatcher_tx.clone());
         let solo_game_menu = SoloGamesMenuScreen::new(dispatcher_tx.clone());
         // solo speed
-        let solo_speed_game = SoloRaceGameScreen::new(
+        let solo_speed_game = SoloGameScreen::new(
             dispatcher_tx.clone(),
             settings.clone(),
             data_end_game.clone(),
+            games::GameMod::Race,
         );
         let setting_solo_race = SoloRaceSettingScreen::new(dispatcher_tx.clone(), settings.clone());
         // solo inifinite
-        let solo_infinte_game = SoloInfiniteGameScreen::new(
+        let solo_infinte_game = SoloGameScreen::new(
             dispatcher_tx.clone(),
             settings.clone(),
             data_end_game.clone(),
+            games::GameMod::Infinite,
         );
         let setting_solo_infinite =
             SoloInfiniteSettingScreen::new(dispatcher_tx.clone(), settings.clone());
 
-        let solo_clock_game = SoloClockGameScreen::new(
+        let solo_clock_game = SoloGameScreen::new(
             dispatcher_tx.clone(),
             settings.clone(),
             data_end_game.clone(),
+            games::GameMod::Clock,
         );
         let setting_solo_clock =
             SoloClockSettingScreen::new(dispatcher_tx.clone(), settings.clone());
 
+        let solo_text_settings = TextSettingScreen::new(dispatcher_tx.clone(), settings.clone());
         let win_menu = WinMenuScreen::new(
             dispatcher_tx.clone(),
             data_end_game.clone(),
@@ -121,6 +131,7 @@ impl ScreenRouterComponent {
             setting_solo_infinite,
             solo_clock_game,
             setting_solo_clock,
+            solo_text_settings,
             win_menu,
             debug_menu,
         }
@@ -158,6 +169,7 @@ impl ScreenRouterComponent {
             Screen::SoloClockSetting => self.setting_solo_clock.update_screen(action),
             Screen::DebugMenu => self.debug_menu.update_screen(action),
             Screen::WinMenu => self.win_menu.update_screen(action),
+            Screen::SoloTextSettings => self.solo_text_settings.update_screen(action),
         }
     }
 }
@@ -202,6 +214,7 @@ impl Widget for &mut ScreenRouterComponent {
             Screen::SoloClockSetting => self.setting_solo_clock.render(area, buf),
             Screen::DebugMenu => self.debug_menu.render(area, buf),
             Screen::WinMenu => self.win_menu.render(area, buf),
+            Screen::SoloTextSettings => self.solo_text_settings.render(area, buf),
         }
     }
 }

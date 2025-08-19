@@ -1,10 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use async_deferred::Deferred;
-use log::debug;
+use log::{debug, warn};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
+    text::Text,
     widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};
@@ -51,14 +52,6 @@ enum GeneratingOption {
     #[default]
     Text,
     Language,
-}
-impl GeneratingOption {
-    fn to_setting_param(self) -> TextOrigin {
-        match self {
-            GeneratingOption::Text => TextOrigin::Text,
-            GeneratingOption::Language => TextOrigin::Generated,
-        }
-    }
 }
 
 impl GeneratingOption {
@@ -216,18 +209,19 @@ impl SourceSettingsSoloGameComponent {
         }
     }
     pub fn save_in_settings(&self) {
-        let mut settings = self.settings.borrow_mut();
-        match self.game_mod {
-            GameMod::Race => {
-                let race_game_settings = &mut settings.game_settings.race_game_settings;
-                race_game_settings.text_origin = self.state_generator.to_setting_param();
-                if let Some(filename) = self.get_current_filename() {
-                    race_game_settings.filename = filename
-                }
-            }
-            GameMod::Clock => todo!(),
-            GameMod::Infinite => todo!(),
-        }
+        // let mut settings = self.settings.borrow_mut().game_settings.text_settings;
+
+        // match self.game_mod {
+        //     GameMod::Race => {
+        //         let race_game_settings = &mut settings.game_settings.race_game_settings;
+        //         race_game_settings.text_origin = self.state_generator.to_setting_param();
+        //         if let Some(filename) = self.get_current_filename() {
+        //             race_game_settings.filename = filename
+        //         }
+        //     }
+        //     GameMod::Clock => todo!(),
+        //     GameMod::Infinite => todo!(),
+        // }
     }
 
     pub fn is_editing(&self) -> bool {
@@ -591,8 +585,6 @@ impl SoloRaceSettingScreen {
         self.source_settings.save_in_settings();
         let settings_race = &mut self.settings.borrow_mut().game_settings.race_game_settings;
         settings_race.number_words = self.chosen_length.value();
-        settings_race.start_end_sentence = self.start_end_option.setting_value();
-        settings_race.starting_point = self.starting_point_option.setting_value();
     }
 }
 
@@ -912,8 +904,6 @@ impl SoloClockSettingScreen {
         self.source_settings.save_in_settings();
         let settings_clock = &mut self.settings.borrow_mut().game_settings.clock_game_settings;
         settings_clock.time = self.chosen_time.value();
-        settings_clock.start_end_sentence = self.start_end_option.setting_value();
-        settings_clock.starting_point = self.starting_point_option.setting_value();
     }
 }
 
@@ -942,7 +932,7 @@ impl Store for SoloClockSettingScreen {
                     }
                     ClockPart::StartingPoint | ClockPart::None => {}
                 },
-               Action::UpPressed => match self.selected_part {
+                Action::UpPressed => match self.selected_part {
                     ClockPart::NumberWord => {}
                     ClockPart::None => {}
                     ClockPart::StartEnd => {
@@ -1021,7 +1011,11 @@ impl Widget for &SoloClockSettingScreen {
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(3), Constraint::Length(5),  Constraint::Length(4)])
+            .constraints(vec![
+                Constraint::Length(3),
+                Constraint::Length(5),
+                Constraint::Length(4),
+            ])
             .split(layout[1]);
 
         let block_n_words_selection = {
@@ -1090,7 +1084,6 @@ impl Widget for &SoloClockSettingScreen {
             buf,
             &mut self.starting_point_option.state(),
         );
-
     }
 }
 impl SendAction for SoloClockSettingScreen {
@@ -1156,7 +1149,6 @@ impl SoloInfiniteSettingScreen {
             .borrow_mut()
             .game_settings
             .infinite_game_settings;
-        settings_infinite.start_end_sentence = self.start_end_option.setting_value();
     }
 }
 
@@ -1266,5 +1258,409 @@ impl IsScreen for SoloInfiniteSettingScreen {
         debug!("closed");
         self.save_in_settings();
         debug!("settings: {:#?}", self.settings.borrow())
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum TextSettingPart {
+    #[default]
+    Generator,
+    Source,
+    StartEnd,
+    StartingPoint,
+}
+
+#[derive(Debug)]
+pub struct TextSettingScreen {
+    dispatcher_tx: UnboundedSender<Action>,
+    settings: Rc<RefCell<Settings>>,
+    chosen_length: NumberWord,
+    start_end_option: StartEndSentenceState,
+    starting_point_option: StartingPointState,
+    selected_part: TextSettingPart,
+    editing_part: Option<TextSettingPart>,
+
+    state_generator: GeneratingOption,
+    texts: Deferred<Vec<String>>,
+    selected_text: ListState,
+    languages: Deferred<Vec<String>>,
+    selected_language: ListState,
+}
+
+impl TextSettingScreen {
+    pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
+        let mut basic_settings = SourceSettingsSoloGameComponent::new(
+            dispatcher_tx.clone(),
+            settings.clone(),
+            GameMod::Race,
+        );
+        let texts = Deferred::start(async || {
+            get_list_file_in_folder(PATH_TEXTS, Some(String::from(DEFAULT_TEXT))).await
+        });
+        let languages = Deferred::start(async || {
+            get_list_file_in_folder(PATH_LANGUAGES, Some(String::from(DEFAULT_LANGUAGE))).await
+        });
+        basic_settings.select_default();
+        TextSettingScreen {
+            dispatcher_tx,
+            settings,
+            start_end_option: StartEndSentenceState::default(),
+            starting_point_option: StartingPointState::default(),
+            chosen_length: NumberWord::default(),
+            selected_part: TextSettingPart::default(),
+            editing_part: None,
+
+            state_generator: GeneratingOption::default(),
+            texts,
+            selected_text: ListState::default().with_selected(Some(0)),
+            languages,
+            selected_language: ListState::default().with_selected(Some(0)),
+        }
+    }
+
+    fn next_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.next();
+    }
+    fn previous_start_end(&mut self) {
+        self.start_end_option = self.start_end_option.previous();
+    }
+
+    fn next_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.next();
+    }
+    fn previous_starting_point(&mut self) {
+        self.starting_point_option = self.starting_point_option.previous();
+    }
+    fn get_current_filename(&self) -> Option<String> {
+        match self.state_generator {
+            GeneratingOption::Text => self
+                .texts
+                .try_get()
+                .map(|texts| texts[self.selected_text.selected().unwrap()].clone()),
+            GeneratingOption::Language => self
+                .languages
+                .try_get()
+                .map(|languages| languages[self.selected_text.selected().unwrap()].clone()),
+        }
+    }
+    fn save_in_settings(&self) {
+        let text_origin = match self.state_generator {
+            GeneratingOption::Text => TextOrigin::Text {
+                start_end_sentence: self.start_end_option.setting_value(),
+                starting_point: self.starting_point_option.setting_value(),
+            },
+            GeneratingOption::Language => TextOrigin::Language,
+        };
+
+        let filename = self.get_current_filename();
+
+        let settings = &mut self.settings.borrow_mut().game_settings.text_settings;
+        settings.filename = filename;
+        settings.text_origin = text_origin;
+    }
+}
+
+impl Store for TextSettingScreen {
+    fn update(&mut self, action: Action) {
+        match action {
+            Action::DownPressed => match (self.selected_part, self.editing_part) {
+                (TextSettingPart::Generator, None) => self.selected_part = TextSettingPart::Source,
+                (TextSettingPart::Generator, Some(TextSettingPart::Generator)) => {
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::Source;
+                }
+                (TextSettingPart::Source, None) => {}
+                (TextSettingPart::Source, Some(TextSettingPart::Source)) => {
+                    match self.state_generator {
+                        GeneratingOption::Text => {
+                            if let Some(sources) = self.texts.try_get() {
+                                if self.selected_text.selected().unwrap() < sources.len() - 1 {
+                                    self.selected_text.select_next();
+                                }
+                            }
+                        }
+                        GeneratingOption::Language => {
+                            if let Some(sources) = self.languages.try_get() {
+                                if self.selected_language.selected().unwrap() < sources.len() - 1 {
+                                    self.selected_language.select_next();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                (TextSettingPart::StartEnd, None) => {
+                    self.selected_part = TextSettingPart::StartingPoint
+                }
+                (TextSettingPart::StartEnd, Some(TextSettingPart::StartEnd)) => {
+                    self.next_start_end();
+                }
+                (TextSettingPart::StartingPoint, None) => {}
+                (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
+                    self.next_starting_point()
+                }
+                _ => warn!(
+                    "When moving up in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
+                    self.selected_part, self.editing_part
+                ),
+            },
+            Action::UpPressed => match (self.selected_part, self.editing_part) {
+                (TextSettingPart::Generator, None) => {}
+                (TextSettingPart::Generator, Some(TextSettingPart::Generator)) => {
+                    self.editing_part = None
+                }
+                (TextSettingPart::Source, None) => self.selected_part = TextSettingPart::Generator,
+                (TextSettingPart::Source, Some(TextSettingPart::Source)) => {
+                    match self.state_generator {
+                        GeneratingOption::Text => {
+                            if self.texts.is_complete() {
+                                self.selected_text.select_previous()
+                            }
+                        }
+                        GeneratingOption::Language => {
+                            if self.languages.is_complete() {
+                                self.selected_language.select_previous();
+                            }
+                        }
+                    }
+                }
+                (TextSettingPart::StartEnd, None) => {}
+                (TextSettingPart::StartEnd, Some(TextSettingPart::StartEnd)) => {
+                    self.previous_start_end();
+                }
+                (TextSettingPart::StartingPoint, None) => {
+                    self.selected_part = TextSettingPart::StartEnd
+                }
+                (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
+                    self.previous_starting_point();
+                }
+                _ => warn!(
+                    "When moving down in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
+                    self.selected_part, self.editing_part
+                ),
+            },
+            Action::RightPressed => match (self.selected_part, self.editing_part) {
+                (TextSettingPart::Generator, None) => {
+                    self.selected_part = TextSettingPart::StartEnd
+                }
+                (TextSettingPart::Generator, Some(TextSettingPart::Generator)) => {
+                    self.state_generator = self.state_generator.next()
+                }
+                (TextSettingPart::Source, None) => {
+                    self.selected_part = TextSettingPart::StartingPoint
+                }
+                (TextSettingPart::Source, Some(TextSettingPart::Source)) => {
+                    match self.state_generator {
+                        GeneratingOption::Text => {
+                            if self.texts.is_complete() {
+                                self.selected_text.select_previous()
+                            }
+                        }
+                        GeneratingOption::Language => {
+                            if self.languages.is_complete() {
+                                self.selected_language.select_previous();
+                            }
+                        }
+                    }
+                }
+                (TextSettingPart::StartEnd, None) => {}
+                (TextSettingPart::StartEnd, Some(TextSettingPart::StartEnd)) => {
+                    self.editing_part = None
+                }
+                (TextSettingPart::StartingPoint, None) => {}
+                (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
+                    self.editing_part = None;
+                }
+                _ => warn!(
+                    "When moving right in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
+                    self.selected_part, self.editing_part
+                ),
+            },
+            Action::LeftPressed => match (self.selected_part, self.editing_part) {
+                (TextSettingPart::Generator, None) => {}
+                (TextSettingPart::Generator, Some(TextSettingPart::Generator)) => {
+                    self.state_generator = self.state_generator.previous()
+                }
+                (TextSettingPart::Source, None) => {}
+                (TextSettingPart::Source, Some(TextSettingPart::Source)) => {
+                    self.editing_part = None;
+                }
+                (TextSettingPart::StartEnd, None) => {
+                    self.selected_part = TextSettingPart::Generator
+                }
+                (TextSettingPart::StartEnd, Some(TextSettingPart::StartEnd)) => {
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::Generator
+                }
+                (TextSettingPart::StartingPoint, None) => {
+                    self.selected_part = TextSettingPart::Source
+                }
+                (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::Generator
+                }
+                _ => warn!(
+                    "When moving left in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
+                    self.selected_part, self.editing_part
+                ),
+            },
+            Action::EnterPressed => match self.editing_part {
+                None => self.editing_part = Some(self.selected_part),
+                Some(_) => self.editing_part = None,
+            },
+            _ => {}
+        }
+    }
+}
+
+impl Widget for &TextSettingScreen {
+    fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(30)])
+            .split(area);
+        // render generator and source settings
+        let basic_config_area = layout[0];
+
+        let layout_gen_src = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3), Constraint::Percentage(50)])
+            .split(basic_config_area);
+
+        let block_generator = {
+            let block = Block::default()
+                .border_type(BorderType::Rounded)
+                .title("Text generation")
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, Some(TextSettingPart::Generator)) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, TextSettingPart::Generator) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_generator = HorizontalList::new(
+            GeneratingOption::get_list()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_generator)
+        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        ratatui::widgets::StatefulWidget::render(
+            &list_generator,
+            layout_gen_src[0],
+            buf,
+            &mut self.state_generator.to_list_state(),
+        );
+
+        let block_src = {
+            let block = Block::default()
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+
+            if matches!(self.editing_part, Some(TextSettingPart::Source)) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, TextSettingPart::Source) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        match self.state_generator {
+            GeneratingOption::Text => {
+                if let Some(sources) = self.texts.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout_gen_src[1],
+                        buf,
+                        &mut self.selected_text.clone(),
+                    );
+                }
+            }
+            GeneratingOption::Language => {
+                if let Some(sources) = self.languages.try_get() {
+                    let list_src = List::new(sources.clone())
+                        .block(block_src)
+                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    StatefulWidget::render(
+                        list_src,
+                        layout_gen_src[1],
+                        buf,
+                        &mut self.selected_language.clone(),
+                    );
+                }
+            }
+        }
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(5), Constraint::Length(4)])
+            .split(layout[1]);
+
+        // fit sentences
+        let block_start = {
+            let block = Block::default()
+                .title("Fit sentences")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, Some(TextSettingPart::StartEnd)) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, TextSettingPart::StartEnd) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Any", "Start", "Start and End"])
+            .block(block_start)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(list_src, layout[0], buf, &mut self.start_end_option.state());
+
+        //starting point
+        let block_starting_point = {
+            let block = Block::default()
+                .title("Starting point")
+                .border_type(BorderType::Rounded)
+                .borders(Borders::ALL);
+            if matches!(self.editing_part, Some(TextSettingPart::StartingPoint)) {
+                block.border_style(Style::new().blue())
+            } else if matches!(self.selected_part, TextSettingPart::StartingPoint) {
+                block.border_style(Style::new().yellow())
+            } else {
+                block
+            }
+        };
+
+        let list_src = List::new(vec!["Beginning", "Random"])
+            .block(block_starting_point)
+            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        StatefulWidget::render(
+            list_src,
+            layout[1],
+            buf,
+            &mut self.starting_point_option.state(),
+        );
+    }
+}
+impl SendAction for TextSettingScreen {
+    fn send(&self, action: Action) -> Result<(), tokio::sync::mpsc::error::SendError<Action>> {
+        self.dispatcher_tx.send(action)
+    }
+}
+
+impl IsScreen for TextSettingScreen {
+    fn close(&mut self) {
+        self.save_in_settings();
     }
 }

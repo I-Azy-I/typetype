@@ -2,11 +2,11 @@ use std::time::Duration;
 
 #[derive(Default, Debug, Clone)]
 pub struct WinData {
-    pub game: GameMod,
+    pub game: GameModEndResult,
 }
 
 #[derive(Default, Debug, Clone)]
-pub enum GameMod {
+pub enum GameModEndResult {
     #[default]
     None,
     Infinite(InfiniteData),

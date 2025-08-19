@@ -131,14 +131,14 @@ impl WinMenuScreen {
     }
     fn new_game(&self) {
         match &self.shr_win_data.borrow().game {
-            crate::win_data::GameMod::None => self
+            crate::win_data::GameModEndResult::None => self
                 .send(Action::EscPressed)
                 .expect("to be able to send action"),
-            crate::win_data::GameMod::Infinite(_) => todo!(),
-            crate::win_data::GameMod::Race(_) => self
+            crate::win_data::GameModEndResult::Infinite(_) => todo!(),
+            crate::win_data::GameModEndResult::Race(_) => self
                 .send(Action::AskChangeToScreen(Screen::SoloRaceGame))
                 .expect("to be able to send action"),
-            crate::win_data::GameMod::Clock(_) => self
+            crate::win_data::GameModEndResult::Clock(_) => self
                 .send(Action::AskChangeToScreen(Screen::SoloClockGame))
                 .expect("to be able to send action"),
         }
@@ -198,12 +198,14 @@ impl Widget for &WinMenuScreen {
         block.render(v_layout[0], buf);
         let data_layout = centered_rect_with_length(inner_area_block.width, 2, inner_area_block);
         match &self.shr_win_data.borrow().game {
-            crate::win_data::GameMod::None => unreachable!("WinData has neverbeen initialized"),
-            crate::win_data::GameMod::Infinite(infinite_data) => todo!(),
-            crate::win_data::GameMod::Race(race_data) => {
+            crate::win_data::GameModEndResult::None => {
+                unreachable!("WinData has neverbeen initialized")
+            }
+            crate::win_data::GameModEndResult::Infinite(infinite_data) => todo!(),
+            crate::win_data::GameModEndResult::Race(race_data) => {
                 self.win_screen_race(race_data, data_layout, buf)
             }
-            crate::win_data::GameMod::Clock(clock_data) => {
+            crate::win_data::GameModEndResult::Clock(clock_data) => {
                 self.win_screen_clock(clock_data, data_layout, buf)
             }
         }
