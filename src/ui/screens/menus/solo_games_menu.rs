@@ -1,16 +1,12 @@
 use log::error;
-use ratatui::widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget};
-use serde_json::error;
+use ratatui::widgets::{Block, List, ListState, StatefulWidget, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     action::Action,
     flux::SendAction,
     stores::Store,
-    ui::{
-        list::{MenuMultipleListComponent, MutipleEntry},
-        screens::IsScreen,
-    },
+    ui::screens::IsScreen,
 };
 
 use super::super::{super::*, Screen};

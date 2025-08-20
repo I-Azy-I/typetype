@@ -5,7 +5,7 @@ use std::{
 };
 
 use async_deferred::Deferred;
-use log::{debug, warn};
+use log::debug;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -25,7 +25,7 @@ use crate::{
     text_generator::{TextGenerator, get_text},
 };
 
-use super::{centered_rect_with_length, screens::Screen};
+use super::centered_rect_with_length;
 const N_WORD_FOR_WPS: usize = 5;
 const LOREM_LIPSUM: &str =
     "Lorem ipsum dolor  sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut";
@@ -449,7 +449,7 @@ impl TextWidget {
         //             new_chars,
         //             100,
         //         );
-        
+
         TextWidget {
             async_text_source,
             current_width: 0,
@@ -488,7 +488,7 @@ impl TextWidget {
         //     .collect();
         // let total_size = typechar_text.len();
         // let lines = Self::get_lines(typechar_text, 100);
-        
+
         TextWidget {
             async_text_source,
             current_width: 0,
@@ -499,7 +499,7 @@ impl TextWidget {
             total_size: 0,
             state: TextWidgetState::Loading,
             mistakes_counter: 0,
-           kind_length: match number_words {
+            kind_length: match number_words {
                 Some(n) => KindLength::Finished(n),
                 None => KindLength::Unlimited,
             },
@@ -512,7 +512,7 @@ impl TextWidget {
         } else {
             self.state = TextWidgetState::InProgress;
             let number_words = match self.kind_length {
-                KindLength::Unlimited => 1000, // arbitrary large number 
+                KindLength::Unlimited => 1000, // arbitrary large number
                 KindLength::Finished(n) => n,
             };
             match &self.async_text_source {
@@ -524,31 +524,26 @@ impl TextWidget {
 
     fn get_new_typechar_text(text: &String, number_words: u16) -> Vec<TypeChar> {
         let n_words = text.split_whitespace().count();
-                let text = if n_words < number_words as usize {
-                    let iteration = (number_words as usize).div_ceil(n_words);
-                    let repeated = std::iter::repeat_n(text.clone(), iteration);
-                    repeated.collect::<Vec<String>>().join(" ")
-                } else {
-                    text.to_string()
-                };
-                let typechar_text: Vec<TypeChar> =
-                    text.chars()
-                    .map(|c| TypeChar {
-                        char: c,
-                        state: CharacterState::NotTyped,
-                    })
-                    .collect();
-                typechar_text
+        let text = if n_words < number_words as usize {
+            let iteration = (number_words as usize).div_ceil(n_words);
+            let repeated = std::iter::repeat_n(text.clone(), iteration);
+            repeated.collect::<Vec<String>>().join(" ")
+        } else {
+            text.to_string()
+        };
+        let typechar_text: Vec<TypeChar> = text
+            .chars()
+            .map(|c| TypeChar {
+                char: c,
+                state: CharacterState::NotTyped,
+            })
+            .collect();
+        typechar_text
     }
     fn init_text(&mut self, number_words: u16) {
         match &self.async_text_source {
             AsyncTextSource::StaticText(async_cache) => {
-                let text =  async_cache
-                    .try_get()
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unwrap();
+                let text = async_cache.try_get().as_ref().unwrap().as_ref().unwrap();
                 let typechar_text = Self::get_new_typechar_text(text, number_words);
                 self.total_size = typechar_text.len();
                 self.lines = Some(Self::get_lines(typechar_text, 100));
@@ -603,7 +598,13 @@ impl TextWidget {
                 assert!(async_cache.is_ready());
                 let batch_size = 10;
                 debug!("Generating new batch of text with size: {}", batch_size);
-                let text = async_cache.try_get().as_ref().unwrap().as_ref().expect("Text should be available").clone();
+                let text = async_cache
+                    .try_get()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .expect("Text should be available")
+                    .clone();
                 let lines = std::mem::take(&mut self.lines);
                 let existing_chars = if let Some(lines) = lines {
                     let existing_chars = lines.into_iter().flat_map(|tlist| tlist.line);
@@ -613,7 +614,9 @@ impl TextWidget {
                 };
                 let type_char_text = Self::get_new_typechar_text(&text, batch_size);
                 if let Some(existing_chars) = existing_chars {
-                    let combined = existing_chars.chain(vec![TypeChar::space()]).chain(type_char_text);
+                    let combined = existing_chars
+                        .chain(vec![TypeChar::space()])
+                        .chain(type_char_text);
                     self.lines = Some(Self::get_lines_from_iterator(combined, width_max));
                 } else {
                     self.lines = Some(Self::get_lines_from_iterator(
@@ -840,7 +843,7 @@ impl TextWidget {
             self.n_line.saturating_sub(n / 2)
         };
         if matches!(self.kind_length, KindLength::Unlimited)
-            && self.n_line + n  >= self.lines.as_ref().unwrap().len()
+            && self.n_line + n >= self.lines.as_ref().unwrap().len()
         {
             self.genrate_new_batch(area.width * (n * 2) as u16, area.width);
         }
@@ -889,7 +892,7 @@ impl StatefulWidget for &mut TextWidget {
 #[derive(Debug)]
 pub struct TextWidgetComponent {
     dispatcher_tx: UnboundedSender<Action>,
-   
+
     pub widget: TextWidget,
 }
 impl TextWidgetComponent {
@@ -904,7 +907,6 @@ impl TextWidgetComponent {
         let clone_dispatcher_tx = dispatcher_tx.clone();
 
         TextWidgetComponent {
-    
             dispatcher_tx,
             widget: TextWidget::new(
                 origin,

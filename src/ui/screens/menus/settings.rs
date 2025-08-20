@@ -1,11 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use async_deferred::Deferred;
-use log::{debug, warn};
+use log::warn;
 use ratatui::{
-    layout::{self, Constraint, Direction, Layout, Rect},
-    style::{Style, Stylize},
-    widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget, block::title},
+    layout::{Constraint, Direction, Layout, Rect},
+    widgets::{Block, List, ListState, StatefulWidget, Widget},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};
 
@@ -19,7 +18,7 @@ use crate::{
         apply_block_style, apply_list_style,
         list::HorizontalList,
         list_hightlight_style, over_block_style,
-        screens::{IsScreen, games::GameMod},
+        screens::IsScreen,
         select_block_style,
     },
 };
