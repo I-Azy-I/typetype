@@ -449,12 +449,7 @@ impl TextWidget {
         //             new_chars,
         //             100,
         //         );
-        let number_words = if let Some(number_words) = number_words {
-            number_words
-        } else {
-            warn!("Race initialized without a finite number of word, set to 50 instead");
-            50
-        };
+        
         TextWidget {
             async_text_source,
             current_width: 0,
@@ -465,7 +460,10 @@ impl TextWidget {
             total_size: 0,
             state: TextWidgetState::Loading,
             mistakes_counter: 0,
-            kind_length: KindLength::Finished(number_words),
+            kind_length: match number_words {
+                Some(n) => KindLength::Finished(n),
+                None => KindLength::Unlimited,
+            },
             wps_tracker: WpsTracker::default(),
         }
     }
@@ -490,12 +488,7 @@ impl TextWidget {
         //     .collect();
         // let total_size = typechar_text.len();
         // let lines = Self::get_lines(typechar_text, 100);
-        let number_words = if let Some(number_words) = number_words {
-            number_words
-        } else {
-            warn!("Race initialized without a finite number of word, set to 50 instead");
-            50
-        };
+        
         TextWidget {
             async_text_source,
             current_width: 0,
@@ -506,7 +499,10 @@ impl TextWidget {
             total_size: 0,
             state: TextWidgetState::Loading,
             mistakes_counter: 0,
-            kind_length: KindLength::Finished(number_words),
+           kind_length: match number_words {
+                Some(n) => KindLength::Finished(n),
+                None => KindLength::Unlimited,
+            },
             wps_tracker: WpsTracker::default(),
         }
     }
@@ -516,30 +512,44 @@ impl TextWidget {
         } else {
             self.state = TextWidgetState::InProgress;
             let number_words = match self.kind_length {
-                KindLength::Unlimited => unreachable!(),
+                KindLength::Unlimited => 1000, // arbitrary large number 
                 KindLength::Finished(n) => n,
             };
             match &self.async_text_source {
-                AsyncTextSource::StaticText(_) => self.init_text(),
+                AsyncTextSource::StaticText(_) => self.init_text(number_words as u16),
                 AsyncTextSource::Generator(_) => self.genrate_new_batch(number_words as u16, 20),
             }
         }
     }
-    fn init_text(&mut self) {
-        match &self.async_text_source {
-            AsyncTextSource::StaticText(async_cache) => {
-                let typechar_text: Vec<TypeChar> = async_cache
-                    .try_get()
-                    .as_ref()
-                    .unwrap()
-                    .as_ref()
-                    .unwrap()
-                    .chars()
+
+    fn get_new_typechar_text(text: &String, number_words: u16) -> Vec<TypeChar> {
+        let n_words = text.split_whitespace().count();
+                let text = if n_words < number_words as usize {
+                    let iteration = (number_words as usize).div_ceil(n_words);
+                    let repeated = std::iter::repeat_n(text.clone(), iteration);
+                    repeated.collect::<Vec<String>>().join(" ")
+                } else {
+                    text.to_string()
+                };
+                let typechar_text: Vec<TypeChar> =
+                    text.chars()
                     .map(|c| TypeChar {
                         char: c,
                         state: CharacterState::NotTyped,
                     })
                     .collect();
+                typechar_text
+    }
+    fn init_text(&mut self, number_words: u16) {
+        match &self.async_text_source {
+            AsyncTextSource::StaticText(async_cache) => {
+                let text =  async_cache
+                    .try_get()
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap();
+                let typechar_text = Self::get_new_typechar_text(text, number_words);
                 self.total_size = typechar_text.len();
                 self.lines = Some(Self::get_lines(typechar_text, 100));
             }
@@ -589,12 +599,28 @@ impl TextWidget {
                 }
             }
             AsyncTextSource::StaticText(async_cache) => {
-                todo!()
-                // assert!(async_cache.is_ready());
-                // let text = async_cache.try_get().as_ref().unwrap().as_ref().expect("Text should be available");
-                // for _ in 0..batch_size.div_ceil(text.len() as u16) {
-
-                // }
+                // generate text as many times as poosible to have more than the requested batch size
+                assert!(async_cache.is_ready());
+                let batch_size = 10;
+                debug!("Generating new batch of text with size: {}", batch_size);
+                let text = async_cache.try_get().as_ref().unwrap().as_ref().expect("Text should be available").clone();
+                let lines = std::mem::take(&mut self.lines);
+                let existing_chars = if let Some(lines) = lines {
+                    let existing_chars = lines.into_iter().flat_map(|tlist| tlist.line);
+                    Some(existing_chars)
+                } else {
+                    None
+                };
+                let type_char_text = Self::get_new_typechar_text(&text, batch_size);
+                if let Some(existing_chars) = existing_chars {
+                    let combined = existing_chars.chain(vec![TypeChar::space()]).chain(type_char_text);
+                    self.lines = Some(Self::get_lines_from_iterator(combined, width_max));
+                } else {
+                    self.lines = Some(Self::get_lines_from_iterator(
+                        type_char_text.into_iter(),
+                        width_max,
+                    ));
+                }
             }
         }
     }
@@ -814,9 +840,9 @@ impl TextWidget {
             self.n_line.saturating_sub(n / 2)
         };
         if matches!(self.kind_length, KindLength::Unlimited)
-            && self.n_line + n / 2 >= self.lines.as_ref().unwrap().len()
+            && self.n_line + n  >= self.lines.as_ref().unwrap().len()
         {
-            self.genrate_new_batch(area.width * 20, area.width);
+            self.genrate_new_batch(area.width * (n * 2) as u16, area.width);
         }
         let display_lines = self.lines.as_ref().unwrap().iter().skip(start_idx).take(n); // TODO: check if access in o(1)
 
@@ -862,15 +888,13 @@ impl StatefulWidget for &mut TextWidget {
 
 #[derive(Debug)]
 pub struct TextWidgetComponent {
-    is_active: bool,
     dispatcher_tx: UnboundedSender<Action>,
-    screen: Screen,
+   
     pub widget: TextWidget,
 }
 impl TextWidgetComponent {
     pub fn new(
         dispatcher_tx: UnboundedSender<Action>,
-        screen: Screen,
         origin: TextOrigin,
         filename: String,
         number_words: Option<usize>,
@@ -880,7 +904,7 @@ impl TextWidgetComponent {
         let clone_dispatcher_tx = dispatcher_tx.clone();
 
         TextWidgetComponent {
-            screen,
+    
             dispatcher_tx,
             widget: TextWidget::new(
                 origin,
@@ -890,7 +914,6 @@ impl TextWidgetComponent {
                 offset,
                 seed,
             ),
-            is_active: true,
         }
     }
 

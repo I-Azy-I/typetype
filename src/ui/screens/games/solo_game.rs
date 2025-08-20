@@ -42,7 +42,6 @@ enum GameModParam {
 
 #[derive(Debug)]
 pub struct SoloGameScreen {
-    screen: Screen,
     dispatcher_tx: UnboundedSender<Action>,
     game_mod: GameMod,
     game_mod_params: GameModParam,
@@ -60,7 +59,6 @@ impl SoloGameScreen {
         game_mod: GameMod,
     ) -> Self {
         SoloGameScreen {
-            screen: SCREEN,
             dispatcher_tx,
             game_mod,
             game_mod_params: GameModParam::default(),
@@ -127,7 +125,6 @@ impl SoloGameScreen {
             };
             self.text_component = Some(TextWidgetComponent::new(
                 self.dispatcher_tx.clone(),
-                self.screen,
                 text_origin,
                 path_source,
                 n_words,
