@@ -1,4 +1,8 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Style, Stylize},
+    widgets::{Block, BorderType, Borders, List},
+};
 pub mod clock;
 pub mod gauge;
 pub mod list;
@@ -47,4 +51,26 @@ pub fn centered_rect_with_length(size_x: u16, size_y: u16, r: Rect) -> Rect {
             Constraint::Length((r.width.checked_sub(size_x)).unwrap_or_default() / 2),
         ])
         .split(popup_layout[1])[1] // Return the middle chunk
+}
+
+pub fn list_hightlight_style() -> Style {
+    Style::new().reversed()
+}
+
+pub fn apply_block_style(block: Block) -> Block {
+    block.borders(Borders::ALL).border_type(BorderType::Rounded)
+}
+
+pub fn apply_list_style(list: List) -> List {
+    list.highlight_style(list_hightlight_style())
+        .highlight_symbol("•")
+        .repeat_highlight_symbol(true)
+}
+
+pub fn over_block_style(block: Block) -> Block {
+    block.border_style(Style::new().yellow())
+}
+
+pub fn select_block_style(block: Block) -> Block {
+    block.border_style(Style::new().blue())
 }

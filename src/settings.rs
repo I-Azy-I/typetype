@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 pub const PATH_SETTINGS: &str = "settings/";
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

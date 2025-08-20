@@ -3,9 +3,9 @@ use std::{cell::RefCell, rc::Rc};
 use async_deferred::Deferred;
 use log::{debug, warn};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{self, Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
-    widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, List, ListState, StatefulWidget, Widget, block::title},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};
 
@@ -16,8 +16,11 @@ use crate::{
     settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin},
     stores::Store,
     ui::{
+        apply_block_style, apply_list_style,
         list::HorizontalList,
+        list_hightlight_style, over_block_style,
         screens::{IsScreen, games::GameMod},
+        select_block_style,
     },
 };
 
@@ -559,10 +562,10 @@ impl SoloRaceSettingScreen {
         }
     }
 
-    fn next_choosed_number_words(&mut self) {
+    fn next_chosen_number_words(&mut self) {
         self.chosen_length = self.chosen_length.next();
     }
-    fn previous_choosed_number_words(&mut self) {
+    fn previous_chosen_number_words(&mut self) {
         self.chosen_length = self.chosen_length.previous();
     }
 
@@ -631,11 +634,11 @@ impl Store for SoloRaceSettingScreen {
                     }
                 },
                 Action::RightPressed => match self.editing_part {
-                    RacePart::NumberWord => self.next_choosed_number_words(),
+                    RacePart::NumberWord => self.next_chosen_number_words(),
                     RacePart::None | RacePart::StartEnd | RacePart::StartingPoint => {}
                 },
                 Action::LeftPressed => match self.editing_part {
-                    RacePart::NumberWord => self.previous_choosed_number_words(),
+                    RacePart::NumberWord => self.previous_chosen_number_words(),
                     RacePart::None | RacePart::StartEnd | RacePart::StartingPoint => {
                         match self.selected_part {
                             RacePart::NumberWord => self.source_settings.select_generator(),
@@ -783,7 +786,7 @@ impl IsScreen for SoloRaceSettingScreen {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-enum TimeCock {
+enum TimeClock {
     S10,
     S20,
     #[default]
@@ -792,9 +795,9 @@ enum TimeCock {
     Custom(usize), // TODO
 }
 
-impl TimeCock {
+impl TimeClock {
     fn next(self) -> Self {
-        use TimeCock::*;
+        use TimeClock::*;
         match self {
             S10 => S20,
             S20 => S30,
@@ -804,7 +807,7 @@ impl TimeCock {
         }
     }
     fn previous(self) -> Self {
-        use TimeCock::*;
+        use TimeClock::*;
         match self {
             S10 => S10,
             S20 => S10,
@@ -814,7 +817,7 @@ impl TimeCock {
         }
     }
     fn state(self) -> ListState {
-        use TimeCock::*;
+        use TimeClock::*;
         let value = match self {
             S10 => 0,
             S20 => 1,
@@ -825,7 +828,7 @@ impl TimeCock {
         ListState::default().with_selected(Some(value))
     }
     fn value(self) -> usize {
-        use TimeCock::*;
+        use TimeClock::*;
         match self {
             S10 => 10,
             S20 => 20,
@@ -853,7 +856,7 @@ pub struct SoloClockSettingScreen {
     dispatcher_tx: UnboundedSender<Action>,
     settings: Rc<RefCell<Settings>>,
     source_settings: SourceSettingsSoloGameComponent,
-    chosen_time: TimeCock,
+    chosen_time: TimeClock,
     start_end_option: StartEndSentenceState,
     starting_point_option: StartingPointState,
     selected_part: ClockPart,
@@ -874,16 +877,16 @@ impl SoloClockSettingScreen {
             source_settings: basic_settings,
             start_end_option: StartEndSentenceState::default(),
             starting_point_option: StartingPointState::default(),
-            chosen_time: TimeCock::default(),
+            chosen_time: TimeClock::default(),
             selected_part: ClockPart::default(),
             editing_part: ClockPart::default(),
         }
     }
 
-    fn next_choosed_time(&mut self) {
+    fn next_chosen_time(&mut self) {
         self.chosen_time = self.chosen_time.next();
     }
-    fn previous_choosed_time(&mut self) {
+    fn previous_chosen_time(&mut self) {
         self.chosen_time = self.chosen_time.previous();
     }
 
@@ -950,11 +953,11 @@ impl Store for SoloClockSettingScreen {
                     }
                 },
                 Action::RightPressed => match self.editing_part {
-                    ClockPart::NumberWord => self.next_choosed_time(),
+                    ClockPart::NumberWord => self.next_chosen_time(),
                     ClockPart::None | ClockPart::StartEnd | ClockPart::StartingPoint => {}
                 },
                 Action::LeftPressed => match self.editing_part {
-                    ClockPart::NumberWord => self.previous_choosed_time(),
+                    ClockPart::NumberWord => self.previous_chosen_time(),
                     ClockPart::None | ClockPart::StartEnd | ClockPart::StartingPoint => {
                         match self.selected_part {
                             ClockPart::NumberWord => self.source_settings.select_generator(),
@@ -1031,7 +1034,7 @@ impl Widget for &SoloClockSettingScreen {
             }
         };
         let list = HorizontalList::new(
-            TimeCock::get_list_option()
+            TimeClock::get_list_option()
                 .into_iter()
                 .map(|el| el.to_string())
                 .collect(),
@@ -1260,20 +1263,21 @@ impl IsScreen for SoloInfiniteSettingScreen {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 enum TextSettingPart {
     #[default]
     Generator,
     Source,
     StartEnd,
     StartingPoint,
+    TimeClock,
+    NumberWordsRace,
 }
 
 #[derive(Debug)]
 pub struct TextSettingScreen {
     dispatcher_tx: UnboundedSender<Action>,
     settings: Rc<RefCell<Settings>>,
-    chosen_length: NumberWord,
     start_end_option: StartEndSentenceState,
     starting_point_option: StartingPointState,
     selected_part: TextSettingPart,
@@ -1284,6 +1288,9 @@ pub struct TextSettingScreen {
     selected_text: ListState,
     languages: Deferred<Vec<String>>,
     selected_language: ListState,
+
+    state_number_words_race: NumberWord,
+    state_time_clock: TimeClock,
 }
 
 impl TextSettingScreen {
@@ -1305,7 +1312,6 @@ impl TextSettingScreen {
             settings,
             start_end_option: StartEndSentenceState::default(),
             starting_point_option: StartingPointState::default(),
-            chosen_length: NumberWord::default(),
             selected_part: TextSettingPart::default(),
             editing_part: None,
 
@@ -1314,9 +1320,23 @@ impl TextSettingScreen {
             selected_text: ListState::default().with_selected(Some(0)),
             languages,
             selected_language: ListState::default().with_selected(Some(0)),
+
+            state_time_clock: TimeClock::default(),
+            state_number_words_race: NumberWord::default(),
         }
     }
-
+    fn next_chosen_time(&mut self) {
+        self.state_time_clock = self.state_time_clock.next();
+    }
+    fn previous_chosen_time(&mut self) {
+        self.state_time_clock = self.state_time_clock.previous();
+    }
+    fn next_chosen_number_words(&mut self) {
+        self.state_number_words_race = self.state_number_words_race.next();
+    }
+    fn previous_chosen_number_words(&mut self) {
+        self.state_number_words_race = self.state_number_words_race.previous();
+    }
     fn next_start_end(&mut self) {
         self.start_end_option = self.start_end_option.next();
     }
@@ -1356,6 +1376,18 @@ impl TextSettingScreen {
         let settings = &mut self.settings.borrow_mut().game_settings.text_settings;
         settings.filename = filename;
         settings.text_origin = text_origin;
+    }
+
+    fn create_block(&self, title: &'static str, part: TextSettingPart) -> Block {
+        let block = apply_block_style(Block::default().title(title));
+
+        if self.editing_part == Some(part) {
+            select_block_style(block)
+        } else if self.selected_part == part {
+            over_block_style(block)
+        } else {
+            block
+        }
     }
 }
 
@@ -1398,6 +1430,17 @@ impl Store for TextSettingScreen {
                 (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
                     self.next_starting_point()
                 }
+                (TextSettingPart::NumberWordsRace, None) => {
+                    self.selected_part = TextSettingPart::TimeClock
+                }
+                (TextSettingPart::NumberWordsRace, Some(TextSettingPart::NumberWordsRace)) => {
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::TimeClock;
+                }
+                (TextSettingPart::TimeClock, None) => {}
+                (TextSettingPart::TimeClock, Some(TextSettingPart::TimeClock)) => {
+                    self.editing_part = None;
+                }
                 _ => warn!(
                     "When moving up in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
                     self.selected_part, self.editing_part
@@ -1433,6 +1476,17 @@ impl Store for TextSettingScreen {
                 (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
                     self.previous_starting_point();
                 }
+                (TextSettingPart::NumberWordsRace, None) => {}
+                (TextSettingPart::NumberWordsRace, Some(TextSettingPart::NumberWordsRace)) => {
+                    self.editing_part = None;
+                }
+                (TextSettingPart::TimeClock, None) => {
+                    self.selected_part = TextSettingPart::NumberWordsRace
+                }
+                (TextSettingPart::TimeClock, Some(TextSettingPart::TimeClock)) => {
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::NumberWordsRace;
+                }
                 _ => warn!(
                     "When moving down in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
                     self.selected_part, self.editing_part
@@ -1449,26 +1503,30 @@ impl Store for TextSettingScreen {
                     self.selected_part = TextSettingPart::StartingPoint
                 }
                 (TextSettingPart::Source, Some(TextSettingPart::Source)) => {
-                    match self.state_generator {
-                        GeneratingOption::Text => {
-                            if self.texts.is_complete() {
-                                self.selected_text.select_previous()
-                            }
-                        }
-                        GeneratingOption::Language => {
-                            if self.languages.is_complete() {
-                                self.selected_language.select_previous();
-                            }
-                        }
-                    }
+                    self.editing_part = None;
+                    self.selected_part = TextSettingPart::StartingPoint;
                 }
-                (TextSettingPart::StartEnd, None) => {}
+                (TextSettingPart::StartEnd, None) => {
+                    self.selected_part = TextSettingPart::NumberWordsRace
+                }
                 (TextSettingPart::StartEnd, Some(TextSettingPart::StartEnd)) => {
+                    self.selected_part = TextSettingPart::NumberWordsRace;
                     self.editing_part = None
                 }
-                (TextSettingPart::StartingPoint, None) => {}
+                (TextSettingPart::StartingPoint, None) => {
+                    self.selected_part = TextSettingPart::TimeClock;
+                }
                 (TextSettingPart::StartingPoint, Some(TextSettingPart::StartingPoint)) => {
+                    self.selected_part = TextSettingPart::TimeClock;
                     self.editing_part = None;
+                }
+                (TextSettingPart::NumberWordsRace, None) => {}
+                (TextSettingPart::NumberWordsRace, Some(TextSettingPart::NumberWordsRace)) => {
+                    self.next_chosen_number_words();
+                }
+                (TextSettingPart::TimeClock, None) => {}
+                (TextSettingPart::TimeClock, Some(TextSettingPart::TimeClock)) => {
+                    self.next_chosen_time();
                 }
                 _ => warn!(
                     "When moving right in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
@@ -1498,6 +1556,18 @@ impl Store for TextSettingScreen {
                     self.editing_part = None;
                     self.selected_part = TextSettingPart::Generator
                 }
+                (TextSettingPart::NumberWordsRace, None) => {
+                    self.selected_part = TextSettingPart::StartEnd
+                }
+                (TextSettingPart::NumberWordsRace, Some(TextSettingPart::NumberWordsRace)) => {
+                    self.previous_chosen_number_words();
+                }
+                (TextSettingPart::TimeClock, None) => {
+                    self.selected_part = TextSettingPart::StartEnd
+                }
+                (TextSettingPart::TimeClock, Some(TextSettingPart::TimeClock)) => {
+                    self.previous_chosen_time();
+                }
                 _ => warn!(
                     "When moving left in text settings an illegal move happened: selected part: {:?}, edditing part: {:?}",
                     self.selected_part, self.editing_part
@@ -1519,7 +1589,11 @@ impl Widget for &TextSettingScreen {
     {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(30)])
+            .constraints(vec![
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+                Constraint::Percentage(30),
+            ])
             .split(area);
         // render generator and source settings
         let basic_config_area = layout[0];
@@ -1529,19 +1603,7 @@ impl Widget for &TextSettingScreen {
             .constraints(vec![Constraint::Length(3), Constraint::Percentage(50)])
             .split(basic_config_area);
 
-        let block_generator = {
-            let block = Block::default()
-                .border_type(BorderType::Rounded)
-                .title("Text generation")
-                .borders(Borders::ALL);
-            if matches!(self.editing_part, Some(TextSettingPart::Generator)) {
-                block.border_style(Style::new().blue())
-            } else if matches!(self.selected_part, TextSettingPart::Generator) {
-                block.border_style(Style::new().yellow())
-            } else {
-                block
-            }
-        };
+        let block_generator = self.create_block("Text generation", TextSettingPart::Generator);
 
         let list_generator = HorizontalList::new(
             GeneratingOption::get_list()
@@ -1550,7 +1612,7 @@ impl Widget for &TextSettingScreen {
                 .collect(),
         )
         .block(block_generator)
-        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        .highlight_style(list_hightlight_style());
         ratatui::widgets::StatefulWidget::render(
             &list_generator,
             layout_gen_src[0],
@@ -1558,26 +1620,12 @@ impl Widget for &TextSettingScreen {
             &mut self.state_generator.to_list_state(),
         );
 
-        let block_src = {
-            let block = Block::default()
-                .border_type(BorderType::Rounded)
-                .borders(Borders::ALL);
-
-            if matches!(self.editing_part, Some(TextSettingPart::Source)) {
-                block.border_style(Style::new().blue())
-            } else if matches!(self.selected_part, TextSettingPart::Source) {
-                block.border_style(Style::new().yellow())
-            } else {
-                block
-            }
-        };
+        let block_src = self.create_block("", TextSettingPart::Source);
 
         match self.state_generator {
             GeneratingOption::Text => {
                 if let Some(sources) = self.texts.try_get() {
-                    let list_src = List::new(sources.clone())
-                        .block(block_src)
-                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    let list_src = apply_list_style(List::new(sources.clone()).block(block_src));
                     StatefulWidget::render(
                         list_src,
                         layout_gen_src[1],
@@ -1588,9 +1636,7 @@ impl Widget for &TextSettingScreen {
             }
             GeneratingOption::Language => {
                 if let Some(sources) = self.languages.try_get() {
-                    let list_src = List::new(sources.clone())
-                        .block(block_src)
-                        .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+                    let list_src = apply_list_style(List::new(sources.clone()).block(block_src));
                     StatefulWidget::render(
                         list_src,
                         layout_gen_src[1],
@@ -1601,54 +1647,73 @@ impl Widget for &TextSettingScreen {
             }
         }
 
-        let layout = Layout::default()
+        let layout_second_column = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Length(5), Constraint::Length(4)])
             .split(layout[1]);
 
         // fit sentences
-        let block_start = {
-            let block = Block::default()
-                .title("Fit sentences")
-                .border_type(BorderType::Rounded)
-                .borders(Borders::ALL);
-            if matches!(self.editing_part, Some(TextSettingPart::StartEnd)) {
-                block.border_style(Style::new().blue())
-            } else if matches!(self.selected_part, TextSettingPart::StartEnd) {
-                block.border_style(Style::new().yellow())
-            } else {
-                block
-            }
-        };
+        let block_start = self.create_block("Fit sentences", TextSettingPart::StartEnd);
 
-        let list_src = List::new(vec!["Any", "Start", "Start and End"])
-            .block(block_start)
-            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
-        StatefulWidget::render(list_src, layout[0], buf, &mut self.start_end_option.state());
-
-        //starting point
-        let block_starting_point = {
-            let block = Block::default()
-                .title("Starting point")
-                .border_type(BorderType::Rounded)
-                .borders(Borders::ALL);
-            if matches!(self.editing_part, Some(TextSettingPart::StartingPoint)) {
-                block.border_style(Style::new().blue())
-            } else if matches!(self.selected_part, TextSettingPart::StartingPoint) {
-                block.border_style(Style::new().yellow())
-            } else {
-                block
-            }
-        };
-
-        let list_src = List::new(vec!["Beginning", "Random"])
-            .block(block_starting_point)
-            .highlight_style(Style::new().bg(ratatui::style::Color::Yellow));
+        let list_src =
+            apply_list_style(List::new(vec!["Any", "Start", "Start and End"]).block(block_start));
         StatefulWidget::render(
             list_src,
-            layout[1],
+            layout_second_column[0],
+            buf,
+            &mut self.start_end_option.state(),
+        );
+
+        //starting point
+        let block_starting_point =
+            self.create_block("Starting point", TextSettingPart::StartingPoint);
+
+        let list_src =
+            apply_list_style(List::new(vec!["Beginning", "Random"]).block(block_starting_point));
+        StatefulWidget::render(
+            list_src,
+            layout_second_column[1],
             buf,
             &mut self.starting_point_option.state(),
+        );
+
+        let layout_third_column = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3), Constraint::Length(3)])
+            .split(layout[2]);
+
+        let block_n_words_race =
+            self.create_block("Number words Race game", TextSettingPart::NumberWordsRace);
+
+        let list_number_words_race = HorizontalList::new(
+            NumberWord::get_list_option()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_n_words_race)
+        .highlight_style(list_hightlight_style());
+
+        let block_time_clock = self.create_block("Time Clock game", TextSettingPart::TimeClock);
+
+        let list_time_clock = HorizontalList::new(
+            TimeClock::get_list_option()
+                .into_iter()
+                .map(|el| el.to_string())
+                .collect(),
+        )
+        .block(block_time_clock)
+        .highlight_style(list_hightlight_style());
+
+        list_number_words_race.render(
+            layout_third_column[0],
+            buf,
+            &mut self.state_number_words_race.state(),
+        );
+        list_time_clock.render(
+            layout_third_column[1],
+            buf,
+            &mut self.state_time_clock.state(),
         );
     }
 }

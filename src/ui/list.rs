@@ -1,4 +1,9 @@
-use crate::{action::Action, flux::SendAction, stores::Store};
+use crate::{
+    action::Action,
+    flux::SendAction,
+    stores::Store,
+    ui::{apply_block_style, apply_list_style},
+};
 use log::error;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -94,11 +99,10 @@ impl Widget for &MenuListComponent {
     {
         // let area = centered_rect(70, 70, area);
         let items = self.get_options();
-        let list = List::new(items)
-            .block(Block::bordered().title(self.title.clone()))
-            .highlight_style(Style::new().reversed())
-            .highlight_symbol("•")
-            .repeat_highlight_symbol(true);
+        let list = apply_list_style(List::new(items).block(apply_block_style(
+            Block::bordered().title(self.title.clone()),
+        )));
+
         StatefulWidget::render(list, area, buf, &mut self.list_state.clone());
     }
 }
@@ -392,3 +396,5 @@ impl ScrollableList {
         if !self.is_selected {}
     }
 }
+
+struct SizedListState {}
