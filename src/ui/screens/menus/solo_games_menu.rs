@@ -105,7 +105,7 @@ impl Store for SoloGamesMenuScreen {
                     0 => self.send(Action::AskChangeToScreen(Screen::SoloRaceGame)),
                     1 => self.send(Action::AskChangeToScreen(Screen::SoloClockGame)),
                     2 => self.send(Action::AskChangeToScreen(Screen::SoloInfiniteGame)),
-                    3 => self.send(Action::AskChangeToScreen(Screen::SoloTextSettings)),
+                    3 => self.send(Action::AskChangeToScreen(Screen::SoloGameSettings)),
                     _ => unreachable!("Invalid selected entry: {}", self.selected_entry),
                 };
                 if let Err(e) = result {
