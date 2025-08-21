@@ -2,12 +2,7 @@ use log::error;
 use ratatui::widgets::{Block, List, ListState, StatefulWidget, Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    action::Action,
-    flux::SendAction,
-    stores::Store,
-    ui::screens::IsScreen,
-};
+use crate::{action::Action, flux::SendAction, stores::Store, ui::screens::IsScreen};
 
 use super::super::{super::*, Screen};
 

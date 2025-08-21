@@ -1,9 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, f32::consts::E, rc::Rc};
 
 use async_deferred::Deferred;
 use log::warn;
+use rand::seq::index;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
+    text,
     widgets::{Block, List, ListState, StatefulWidget, Widget},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};
@@ -12,14 +14,11 @@ use crate::{
     action::Action,
     config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS},
     flux::SendAction,
-    settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin},
+    settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin, save_settings},
     stores::Store,
     ui::{
-        apply_block_style, apply_list_style,
-        list::HorizontalList,
-        list_hightlight_style, over_block_style,
-        screens::IsScreen,
-        select_block_style,
+        apply_block_style, apply_list_style, list::HorizontalList, list_hightlight_style,
+        over_block_style, screens::IsScreen, select_block_style,
     },
 };
 
@@ -55,7 +54,7 @@ impl GeneratingOption {
         ["Text", "Language"]
     }
 }
-async fn get_list_file_in_folder(path: &str, first_value: Option<String>) -> Vec<String> {
+async fn get_list_file_in_folder(path: &str) -> Vec<String> {
     let res = async {
         let mut entries = fs::read_dir(path).await.ok()?;
         let mut files = Vec::new();
@@ -66,23 +65,100 @@ async fn get_list_file_in_folder(path: &str, first_value: Option<String>) -> Vec
             }
         }
 
-        if let Some(first_value) = first_value {
-            let index = files.iter().position(|entry| *entry == first_value);
-            if let Some(index) = index {
-                files.remove(index);
-            }
-            files.sort();
-            if index.is_some() {
-                files.insert(0, first_value);
-            }
-        } else {
-            files.sort();
-        }
+        files.sort();
 
         Some(files)
     }
     .await;
     res.unwrap_or_default()
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum StartEndSentenceState {
+    #[default]
+    Any,
+    Start,
+    StartEnd,
+}
+impl StartEndSentenceState {
+    fn next(self) -> Self {
+        match self {
+            StartEndSentenceState::Any => StartEndSentenceState::Start,
+            StartEndSentenceState::Start => StartEndSentenceState::StartEnd,
+            StartEndSentenceState::StartEnd => StartEndSentenceState::StartEnd,
+        }
+    }
+    fn previous(self) -> Self {
+        match self {
+            StartEndSentenceState::Any => StartEndSentenceState::Any,
+            StartEndSentenceState::Start => StartEndSentenceState::Any,
+            StartEndSentenceState::StartEnd => StartEndSentenceState::Start,
+        }
+    }
+    fn state(self) -> ListState {
+        let value = match self {
+            StartEndSentenceState::Any => 0,
+            StartEndSentenceState::Start => 1,
+            StartEndSentenceState::StartEnd => 2,
+        };
+        ListState::default().with_selected(Some(value))
+    }
+
+    fn setting_value(self) -> StartEndSentence {
+        match self {
+            StartEndSentenceState::Any => StartEndSentence::Any,
+            StartEndSentenceState::Start => StartEndSentence::Start,
+            StartEndSentenceState::StartEnd => StartEndSentence::StartEnd,
+        }
+    }
+    fn from_setting_value(setting_value: StartEndSentence) -> Self {
+        match setting_value {
+            StartEndSentence::Any => StartEndSentenceState::Any,
+            StartEndSentence::Start => StartEndSentenceState::Start,
+            StartEndSentence::StartEnd => StartEndSentenceState::StartEnd,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+enum StartingPointState {
+    #[default]
+    Beginning,
+    Random,
+}
+impl StartingPointState {
+    fn next(self) -> Self {
+        match self {
+            Self::Beginning => Self::Random,
+            Self::Random => Self::Random,
+        }
+    }
+    fn previous(self) -> Self {
+        match self {
+            Self::Beginning => Self::Beginning,
+            Self::Random => Self::Beginning,
+        }
+    }
+    fn state(self) -> ListState {
+        let value = match self {
+            StartingPointState::Beginning => 0,
+            StartingPointState::Random => 1,
+        };
+        ListState::default().with_selected(Some(value))
+    }
+
+    fn setting_value(self) -> StartingPointSentence {
+        match self {
+            Self::Beginning => StartingPointSentence::Beginning,
+            Self::Random => StartingPointSentence::Random,
+        }
+    }
+    fn from_setting_value(setting_value: StartingPointSentence) -> Self {
+        match setting_value {
+            StartingPointSentence::Beginning => StartingPointState::Beginning,
+            StartingPointSentence::Random => StartingPointState::Random,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -140,79 +216,15 @@ impl NumberWord {
     fn get_list_option() -> [&'static str; 4] {
         ["10", "25", "50", "100"]
     }
-}
 
-#[derive(Debug, Default, Clone, Copy)]
-enum StartEndSentenceState {
-    #[default]
-    None,
-    Start,
-    StartEnd,
-}
-impl StartEndSentenceState {
-    fn next(self) -> Self {
-        match self {
-            StartEndSentenceState::None => StartEndSentenceState::Start,
-            StartEndSentenceState::Start => StartEndSentenceState::StartEnd,
-            StartEndSentenceState::StartEnd => StartEndSentenceState::StartEnd,
-        }
-    }
-    fn previous(self) -> Self {
-        match self {
-            StartEndSentenceState::None => StartEndSentenceState::None,
-            StartEndSentenceState::Start => StartEndSentenceState::None,
-            StartEndSentenceState::StartEnd => StartEndSentenceState::Start,
-        }
-    }
-    fn state(self) -> ListState {
-        let value = match self {
-            StartEndSentenceState::None => 0,
-            StartEndSentenceState::Start => 1,
-            StartEndSentenceState::StartEnd => 2,
-        };
-        ListState::default().with_selected(Some(value))
-    }
-
-    fn setting_value(self) -> StartEndSentence {
-        match self {
-            StartEndSentenceState::None => StartEndSentence::Any,
-            StartEndSentenceState::Start => StartEndSentence::Start,
-            StartEndSentenceState::StartEnd => StartEndSentence::StartEnd,
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-enum StartingPointState {
-    #[default]
-    Beginning,
-    Random,
-}
-impl StartingPointState {
-    fn next(self) -> Self {
-        match self {
-            Self::Beginning => Self::Random,
-            Self::Random => Self::Random,
-        }
-    }
-    fn previous(self) -> Self {
-        match self {
-            Self::Beginning => Self::Beginning,
-            Self::Random => Self::Beginning,
-        }
-    }
-    fn state(self) -> ListState {
-        let value = match self {
-            StartingPointState::Beginning => 0,
-            StartingPointState::Random => 1,
-        };
-        ListState::default().with_selected(Some(value))
-    }
-
-    fn setting_value(self) -> StartingPointSentence {
-        match self {
-            Self::Beginning => StartingPointSentence::Beginning,
-            Self::Random => StartingPointSentence::Random,
+    fn from_value(value: usize) -> Self {
+        use NumberWord::*;
+        match value {
+            10 => W10,
+            25 => W25,
+            50 => W50,
+            100 => W100,
+            _ => Custom(value),
         }
     }
 }
@@ -272,6 +284,17 @@ impl TimeClock {
     fn get_list_option() -> [&'static str; 4] {
         ["10s", "20s", "30s", "60s"]
     }
+
+    fn from_value(value: usize) -> Self {
+        use TimeClock::*;
+        match value {
+            10 => S10,
+            20 => S20,
+            30 => S30,
+            60 => S60,
+            _ => Custom(value),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -296,8 +319,10 @@ pub struct TextSettingScreen {
 
     state_generator: GeneratingOption,
     texts: Deferred<Vec<String>>,
+    selected_text_name: Option<String>, // reprensent the wanted file, so when the texts are loaded if it is not none we want uptade the selected_text
     selected_text: ListState,
     languages: Deferred<Vec<String>>,
+    selected_language_name: Option<String>, // reprensent the wanted file, so when the languages are loaded if it is not none we want uptade the selected_language
     selected_language: ListState,
 
     state_number_words_race: NumberWord,
@@ -306,14 +331,10 @@ pub struct TextSettingScreen {
 
 impl TextSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let texts = Deferred::start(async || {
-            get_list_file_in_folder(PATH_TEXTS, Some(String::from(DEFAULT_TEXT))).await
-        });
-        let languages = Deferred::start(async || {
-            get_list_file_in_folder(PATH_LANGUAGES, Some(String::from(DEFAULT_LANGUAGE))).await
-        });
+        let texts = Deferred::start(async || get_list_file_in_folder(PATH_TEXTS).await);
+        let languages = Deferred::start(async || get_list_file_in_folder(PATH_LANGUAGES).await);
 
-        TextSettingScreen {
+        let mut text_setting_screen = TextSettingScreen {
             dispatcher_tx,
             settings,
             start_end_option: StartEndSentenceState::default(),
@@ -323,13 +344,53 @@ impl TextSettingScreen {
 
             state_generator: GeneratingOption::default(),
             texts,
+            selected_text_name: None,
             selected_text: ListState::default().with_selected(Some(0)),
             languages,
+            selected_language_name: None,
             selected_language: ListState::default().with_selected(Some(0)),
 
             state_time_clock: TimeClock::default(),
             state_number_words_race: NumberWord::default(),
+        };
+        text_setting_screen.update_from_settings();
+        text_setting_screen
+    }
+    fn update_from_settings(&mut self) {
+        let current_settings = self.settings.borrow();
+        let text_origin = &current_settings.game_settings.text_settings.text_origin;
+        match text_origin {
+            TextOrigin::Language => self.state_generator = GeneratingOption::Language,
+            TextOrigin::Text {
+                start_end_sentence,
+                starting_point,
+            } => {
+                self.state_generator = GeneratingOption::Text;
+                self.start_end_option =
+                    StartEndSentenceState::from_setting_value(*start_end_sentence);
+                self.starting_point_option =
+                    StartingPointState::from_setting_value(*starting_point);
+            }
         }
+        self.selected_text_name = current_settings
+            .game_settings
+            .text_settings
+            .filename
+            .clone();
+        self.selected_language_name = current_settings
+            .game_settings
+            .text_settings
+            .filename
+            .clone();
+
+        self.state_time_clock =
+            TimeClock::from_value(current_settings.game_settings.clock_game_settings.time);
+        self.state_number_words_race = NumberWord::from_value(
+            current_settings
+                .game_settings
+                .race_game_settings
+                .number_words,
+        );
     }
     fn next_chosen_time(&mut self) {
         self.state_time_clock = self.state_time_clock.next();
@@ -358,14 +419,23 @@ impl TextSettingScreen {
     }
     fn get_current_filename(&self) -> Option<String> {
         match self.state_generator {
-            GeneratingOption::Text => self
-                .texts
-                .try_get()
-                .map(|texts| texts[self.selected_text.selected().unwrap()].clone()),
-            GeneratingOption::Language => self
-                .languages
-                .try_get()
-                .map(|languages| languages[self.selected_text.selected().unwrap()].clone()),
+            GeneratingOption::Text => {
+                if let Some(idx) = self.selected_text.selected() {
+                    self.texts.try_get().map(|texts| texts[idx].clone())
+                } else {
+                    None
+                }
+            }
+
+            GeneratingOption::Language => {
+                if let Some(idx) = self.selected_language.selected() {
+                    self.languages
+                        .try_get()
+                        .map(|languages| languages[idx].clone())
+                } else {
+                    None
+                }
+            }
         }
     }
     fn save_in_settings(&self) {
@@ -381,12 +451,14 @@ impl TextSettingScreen {
 
         let time_clock = self.state_time_clock.value();
         let number_words = self.state_number_words_race.value();
+        let mut settings = self.settings.borrow_mut();
+        let game_settings = &mut settings.game_settings;
+        game_settings.text_settings.filename = filename;
+        game_settings.text_settings.text_origin = text_origin;
+        game_settings.race_game_settings.number_words = number_words;
+        game_settings.clock_game_settings.time = time_clock;
 
-        let settings = &mut self.settings.borrow_mut().game_settings;
-        settings.text_settings.filename = filename;
-        settings.text_settings.text_origin = text_origin;
-        settings.race_game_settings.number_words = number_words;
-        settings.clock_game_settings.time = time_clock;
+        save_settings(settings.clone());
     }
 
     fn create_block(&self, title: &'static str, part: TextSettingPart) -> Block {
@@ -416,15 +488,23 @@ impl Store for TextSettingScreen {
                     match self.state_generator {
                         GeneratingOption::Text => {
                             if let Some(sources) = self.texts.try_get() {
-                                if self.selected_text.selected().unwrap() < sources.len() - 1 {
-                                    self.selected_text.select_next();
+                                if let Some(idx) = self.selected_text.selected() {
+                                    if idx < sources.len() - 1 {
+                                        self.selected_text.select_next();
+                                    }
+                                } else {
+                                    self.selected_text.select(Some(0));
                                 }
                             }
                         }
                         GeneratingOption::Language => {
                             if let Some(sources) = self.languages.try_get() {
-                                if self.selected_language.selected().unwrap() < sources.len() - 1 {
-                                    self.selected_language.select_next();
+                                if let Some(idx) = self.selected_language.selected() {
+                                    if idx < sources.len() - 1 {
+                                        self.selected_language.select_next();
+                                    }
+                                } else {
+                                    self.selected_language.select(Some(0));
                                 }
                             }
                         }
@@ -593,11 +673,41 @@ impl Store for TextSettingScreen {
     }
 }
 
-impl Widget for &TextSettingScreen {
+impl Widget for &mut TextSettingScreen {
     fn render(self, area: Rect, buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {
+        // prepare if we need a specific text or language source
+        let selected_text_name = std::mem::take(&mut self.selected_text_name);
+        if let Some(text_name) = selected_text_name {
+            let index = self
+                .texts
+                .try_get()
+                .and_then(|texts| {
+                    texts
+                        .iter()
+                        .position(|el| *el == text_name)
+                        .or_else(|| texts.iter().position(|el| *el == DEFAULT_TEXT))
+                })
+                .unwrap_or_default();
+            self.selected_text.select(Some(index));
+        }
+        let selected_language_name = std::mem::take(&mut self.selected_language_name);
+        if let Some(language_name) = selected_language_name {
+            let index = self
+                .languages
+                .try_get()
+                .and_then(|languages| {
+                    languages
+                        .iter()
+                        .position(|el| *el == language_name)
+                        .or_else(|| languages.iter().position(|el| *el == DEFAULT_LANGUAGE))
+                })
+                .unwrap_or_default();
+            self.selected_language.select(Some(index));
+        }
+
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![

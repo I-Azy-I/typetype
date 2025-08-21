@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fs, path::Path, rc::Rc};
 
 use action::Action;
 use dispatcher::Dispatcher;
@@ -24,6 +24,15 @@ async fn main() {
     [cfg!(debug_assertions)];
     {
         let _ = simple_logging::log_to_file("test.log", log::LevelFilter::Debug);
+    }
+    [cfg!(debug_assertions)];
+    {
+        if !Path::new("settings.toml").exists() {
+            let settings_toml_string =
+                toml::to_string(&Settings::default()).expect("To serialize settings to TOML");
+            fs::write("settings/settings.toml", settings_toml_string)
+                .expect("To write default settings to file");
+        }
     }
 
     let settings: Rc<RefCell<Settings>> = Rc::new(RefCell::new(Settings::default()));

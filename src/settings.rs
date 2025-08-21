@@ -1,6 +1,13 @@
-use serde::{Deserialize, Serialize};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
-pub const PATH_SETTINGS: &str = "settings/";
+use ratatui::text;
+use serde::{Deserialize, Serialize};
+use tokio;
+
+use crate::config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct Settings {
@@ -17,10 +24,41 @@ pub struct GameSettings {
     pub text_settings: TextSettings,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TextSettings {
     pub text_origin: TextOrigin,
     pub filename: Option<String>,
+}
+impl TextSettings {
+    fn try_get_filename(path_files: &str, default_file: &str) -> Option<String> {
+        if Path::new(path_files).join(default_file).exists() {
+            Some(default_file.to_string())
+        } else {
+            if let Ok(mut entries) = fs::read_dir(Path::new(PATH_TEXTS)) {
+                if let Some(entry_result) = entries.next() {
+                    let entry = entry_result.unwrap();
+                    Some(entry.file_name().to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+    }
+}
+impl Default for TextSettings {
+    fn default() -> Self {
+        let text_origin = TextOrigin::default();
+        let filename = match text_origin {
+            TextOrigin::Language => Self::try_get_filename(PATH_LANGUAGES, DEFAULT_LANGUAGE),
+            TextOrigin::Text { .. } => Self::try_get_filename(PATH_TEXTS, DEFAULT_TEXT),
+        };
+        Self {
+            text_origin: TextOrigin::default(),
+            filename,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -74,4 +112,12 @@ pub enum OffsetText {
     Beginning,
     #[default]
     Random,
+}
+
+pub fn save_settings(settings: Settings) {
+    tokio::spawn(async move {
+        let settings_toml_string =
+            toml::to_string(&settings).expect("To serialize settings to TOML");
+        tokio::fs::write("settings/settings.toml", settings_toml_string).await;
+    });
 }
