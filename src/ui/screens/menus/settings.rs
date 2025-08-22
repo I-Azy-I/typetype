@@ -1,7 +1,7 @@
-use std::{cell::RefCell, f32::consts::E, rc::Rc};
+use std::{cell::RefCell, f32::consts::E, path::Path, rc::Rc};
 
 use async_deferred::Deferred;
-use log::warn;
+use log::{debug, warn};
 use rand::seq::index;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -11,15 +11,9 @@ use ratatui::{
 use tokio::{fs, sync::mpsc::UnboundedSender};
 
 use crate::{
-    action::Action,
-    config::{DEFAULT_LANGUAGE, DEFAULT_TEXT, PATH_LANGUAGES, PATH_TEXTS},
-    flux::SendAction,
-    settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin, save_settings},
-    stores::Store,
-    ui::{
-        apply_block_style, apply_list_style, list::HorizontalList, list_hightlight_style,
-        over_block_style, screens::IsScreen, select_block_style,
-    },
+    action::Action, config::{default_language, default_text, path_languages, path_texts}, flux::SendAction, settings::{save_settings, Settings, StartEndSentence, StartingPointSentence, TextOrigin}, stores::Store, ui::{
+        apply_block_style, apply_list_style, centered_rect_with_length, list::HorizontalList, list_hightlight_style, over_block_style, screens::IsScreen, select_block_style
+    }
 };
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -54,7 +48,7 @@ impl GeneratingOption {
         ["Text", "Language"]
     }
 }
-async fn get_list_file_in_folder(path: &str) -> Vec<String> {
+async fn get_list_file_in_folder(path: impl AsRef<Path>) -> Vec<String> {
     let res = async {
         let mut entries = fs::read_dir(path).await.ok()?;
         let mut files = Vec::new();
@@ -331,8 +325,8 @@ pub struct TextSettingScreen {
 
 impl TextSettingScreen {
     pub fn new(dispatcher_tx: UnboundedSender<Action>, settings: Rc<RefCell<Settings>>) -> Self {
-        let texts = Deferred::start(async || get_list_file_in_folder(PATH_TEXTS).await);
-        let languages = Deferred::start(async || get_list_file_in_folder(PATH_LANGUAGES).await);
+        let texts = Deferred::start(async || get_list_file_in_folder(path_texts()).await);
+        let languages = Deferred::start(async || get_list_file_in_folder(path_languages()).await);
 
         let mut text_setting_screen = TextSettingScreen {
             dispatcher_tx,
@@ -678,6 +672,7 @@ impl Widget for &mut TextSettingScreen {
     where
         Self: Sized,
     {
+        let area = centered_rect_with_length(std::cmp::min(70, area.width), 9, area);
         // prepare if we need a specific text or language source
         let selected_text_name = std::mem::take(&mut self.selected_text_name);
         if let Some(text_name) = selected_text_name {
@@ -688,7 +683,7 @@ impl Widget for &mut TextSettingScreen {
                     texts
                         .iter()
                         .position(|el| *el == text_name)
-                        .or_else(|| texts.iter().position(|el| *el == DEFAULT_TEXT))
+                        .or_else(|| texts.iter().position(|el| *el == default_text()))
                 })
                 .unwrap_or_default();
             self.selected_text.select(Some(index));
@@ -702,7 +697,7 @@ impl Widget for &mut TextSettingScreen {
                     languages
                         .iter()
                         .position(|el| *el == language_name)
-                        .or_else(|| languages.iter().position(|el| *el == DEFAULT_LANGUAGE))
+                        .or_else(|| languages.iter().position(|el| *el == default_language()))
                 })
                 .unwrap_or_default();
             self.selected_language.select(Some(index));
@@ -711,9 +706,9 @@ impl Widget for &mut TextSettingScreen {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Percentage(30),
-                Constraint::Percentage(30),
-                Constraint::Percentage(30),
+                Constraint::Ratio(1,3),
+                Constraint::Ratio(1,3),
+                Constraint::Ratio(1,3),
             ])
             .split(area);
         // render generator and source settings
@@ -845,6 +840,10 @@ impl SendAction for TextSettingScreen {
 }
 
 impl IsScreen for TextSettingScreen {
+    fn open(&mut self) {
+        debug!("Opening TextSettingScreen");
+        self.update_from_settings();
+    }
     fn close(&mut self) {
         self.save_in_settings();
     }

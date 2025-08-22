@@ -6,7 +6,8 @@ use std::{io, time::Duration};
 use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-use crate::config::MILISECONDS_PER_FRAME;
+
+use crate::config::miliseconds_per_frame;
 use crate::settings::Settings;
 use crate::stores::Store;
 use crate::{action::Action, ui::screens::ScreenRouterComponent};
@@ -47,7 +48,7 @@ impl AppStore {
         // Set up a timeout of 10ms
         let duration = Instant::now() - self.time_last_frame;
         let timeout = tokio::time::sleep(
-            Duration::from_millis(MILISECONDS_PER_FRAME)
+            Duration::from_millis(miliseconds_per_frame())
                 .checked_sub(duration)
                 .unwrap_or_default(),
         );

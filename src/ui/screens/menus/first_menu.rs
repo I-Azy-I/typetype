@@ -55,7 +55,7 @@ impl Widget for &FirstMenuScreen {
     where
         Self: Sized,
     {
-        let area = centered_rect(70, 70, area);
+        let area = centered_rect_with_length(std::cmp::min(50, area.width), 6, area);
         self.list_store.render(area, buf);
     }
 }

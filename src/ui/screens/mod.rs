@@ -42,7 +42,7 @@ impl Screen {
             Screen::SoloInfiniteGame => Some(Screen::WinMenu),
             Screen::SoloGameSettings => Some(Screen::SoloGamesMenu),
             Screen::DebugMenu => Some(Screen::FirstMenu),
-            Screen::WinMenu => Some(Screen::FirstMenu),
+            Screen::WinMenu => Some(Screen::SoloGamesMenu),
             Screen::SoloClockGame => Some(Screen::WinMenu),
         }
     }

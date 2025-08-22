@@ -15,27 +15,42 @@ mod ui;
 mod user_input;
 mod win_data;
 
+use log::debug;
 use settings::Settings;
 use tokio::sync::mpsc::UnboundedSender;
 use user_input::UserInput;
 
+use crate::settings::load_settings;
+
 #[tokio::main]
 async fn main() {
-    [cfg!(debug_assertions)];
+    #[cfg(debug_assertions)]
     {
         let _ = simple_logging::log_to_file("test.log", log::LevelFilter::Debug);
     }
-    [cfg!(debug_assertions)];
+    #[cfg(debug_assertions)]
     {
-        if !Path::new("settings.toml").exists() {
+        use crate::config::{path_settings, path_general_config};
+
+        if !path_settings().exists() {
             let settings_toml_string =
-                toml::to_string(&Settings::default()).expect("To serialize settings to TOML");
-            fs::write("settings/settings.toml", settings_toml_string)
+            toml::to_string(&Settings::default()).expect("To serialize settings to TOML");
+            fs::write(path_settings(), settings_toml_string)
                 .expect("To write default settings to file");
         }
+        
+        if !Path::new(path_general_config()).exists() {
+            use crate::config::GeneralConfig;
+
+            let config_toml_string =
+            toml::to_string(&GeneralConfig::default()).expect("To serialize config to TOML");
+            fs::write(path_general_config(), config_toml_string)
+                .expect("To write default settings to file");
+        }
+
     }
 
-    let settings: Rc<RefCell<Settings>> = Rc::new(RefCell::new(Settings::default()));
+    let settings: Rc<RefCell<Settings>> = Rc::new(RefCell::new(load_settings()));
     let (mut dispatcher, dispatcher_tx) = Dispatcher::new();
     let (mut app, app_tx) = App::new(dispatcher_tx.clone(), settings);
 

@@ -17,12 +17,7 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    action::Action,
-    config::{PATH_LANGUAGES, PATH_TEXTS},
-    flux::SendAction,
-    settings::{StartEndSentence, TextOrigin},
-    stores::Store,
-    text_generator::{TextGenerator, get_text},
+    action::Action, config::{path_languages, path_texts}, flux::SendAction, settings::{StartEndSentence, TextOrigin}, stores::Store, text_generator::{get_text, TextGenerator}
 };
 
 use super::centered_rect_with_length;
@@ -403,7 +398,7 @@ impl TextWidget {
     ) -> Self {
         match origin {
             TextOrigin::Language => {
-                let dir_path = PathBuf::from(PATH_LANGUAGES);
+                let dir_path = path_languages();
                 let path_source = dir_path.join(filename);
                 Self::from_language(path_source, dispatcher_tx, number_words, seed)
             }
@@ -411,7 +406,7 @@ impl TextWidget {
                 start_end_sentence,
                 starting_point,
             } => {
-                let dir_path = PathBuf::from(PATH_TEXTS);
+                let dir_path = path_texts();
                 let path_source = dir_path.join(filename);
                 Self::from_text(
                     path_source,

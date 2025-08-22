@@ -15,7 +15,8 @@ pub enum GameModEndResult {
 }
 #[derive(Default, Debug, Clone)]
 pub struct InfiniteData {
-    pub time_spend: Duration,
+    pub time: Duration,
+    pub n_words: usize,
 }
 #[derive(Default, Debug, Clone)]
 pub struct RaceData {

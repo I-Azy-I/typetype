@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::config::{PATH_LANGUAGES, PATH_TEXTS};
+use crate::config::{path_languages, path_texts};
 use log::error;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -178,14 +178,14 @@ impl<'a> Iterator for TextGeneratorIter<'a> {
 }
 
 pub async fn fetch_languages_name() -> Vec<String> {
-    list_files_in_folder(PATH_LANGUAGES.to_string()).await
+    list_files_in_folder(path_languages()).await
 }
 
 pub async fn fetch_texts_name() -> Vec<String> {
-    list_files_in_folder(PATH_TEXTS.to_string()).await
+    list_files_in_folder(path_texts()).await
 }
 
-async fn list_files_in_folder(path: String) -> Vec<String> {
+async fn list_files_in_folder(path: impl AsRef<Path>) -> Vec<String> {
     let mut files = Vec::new();
 
     match fs::read_dir(&path).await {
@@ -206,7 +206,7 @@ async fn list_files_in_folder(path: String) -> Vec<String> {
                 }
             }
         }
-        Err(e) => error!("Failed to open directory '{}': {}", path, e),
+        Err(e) => error!("Failed to open directory '{}': {}", path.as_ref().display(), e),
     }
 
     files

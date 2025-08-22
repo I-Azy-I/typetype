@@ -113,7 +113,7 @@ impl Widget for &SoloGamesMenuScreen {
     where
         Self: Sized,
     {
-        let area = centered_rect_with_length(20, 9, area);
+        let area = centered_rect_with_length(std::cmp::min(50, area.width), 9, area);
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(5), Constraint::Length(3)])
