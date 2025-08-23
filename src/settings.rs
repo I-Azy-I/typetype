@@ -1,11 +1,9 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
-use ratatui::text;
 use serde::{Deserialize, Serialize};
-use tokio;
 
 use crate::config::{default_language, default_text, path_languages, path_settings, path_texts};
 
@@ -33,17 +31,15 @@ impl TextSettings {
     fn try_get_filename(path_files: PathBuf, default_filename: String) -> Option<String> {
         if path_files.join(&default_filename).exists() {
             Some(default_filename.to_string())
-        } else {
-            if let Ok(mut entries) = fs::read_dir(&default_filename) {
-                if let Some(entry_result) = entries.next() {
-                    let entry = entry_result.unwrap();
-                    Some(entry.file_name().to_string_lossy().to_string())
-                } else {
-                    None
-                }
+        } else if let Ok(mut entries) = fs::read_dir(&default_filename) {
+            if let Some(entry_result) = entries.next() {
+                let entry = entry_result.unwrap();
+                Some(entry.file_name().to_string_lossy().to_string())
             } else {
                 None
             }
+        } else {
+            None
         }
     }
 }

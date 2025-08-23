@@ -15,7 +15,6 @@ mod ui;
 mod user_input;
 mod win_data;
 
-use log::debug;
 use settings::Settings;
 use tokio::sync::mpsc::UnboundedSender;
 use user_input::UserInput;

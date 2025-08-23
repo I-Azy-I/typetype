@@ -1,11 +1,9 @@
-use std::{cell::RefCell, f32::consts::E, path::Path, rc::Rc};
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use async_deferred::Deferred;
 use log::{debug, warn};
-use rand::seq::index;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    text,
     widgets::{Block, List, ListState, StatefulWidget, Widget},
 };
 use tokio::{fs, sync::mpsc::UnboundedSender};

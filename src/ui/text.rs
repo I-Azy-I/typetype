@@ -1,6 +1,6 @@
 use std::{
     iter::{self},
-    path::{Path, PathBuf},
+    path::Path,
     time::Instant,
 };
 
