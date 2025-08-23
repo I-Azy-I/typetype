@@ -21,10 +21,10 @@ impl UserInput {
             tokio::task::yield_now().await;
             let crossterm_event = reader.next().fuse();
             pin_mut!(crossterm_event);
-            if let Some(Ok(event)) = crossterm_event.await {
-                if let CrosstermEvent::Key(key_event) = event {
+            if let Some(Ok(CrosstermEvent::Key(key_event))) = crossterm_event.await {
+                
                     self.handle_key_event(key_event)
-                };
+                
             }
         }
     }

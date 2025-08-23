@@ -4,7 +4,7 @@ use log::debug;
 use ratatui::{
     style::Style,
     text::Span,
-    widgets::{Block, BorderType, Borders, ListState, StatefulWidget, Widget},
+    widgets::{Block, BorderType, Borders, ListState, Widget},
 };
 use tokio::sync::mpsc::{UnboundedSender, error::SendError};
 
@@ -18,8 +18,6 @@ use crate::{
 };
 
 use super::super::{super::*, Screen};
-
-const SCREEN: Screen = Screen::WinMenu;
 
 #[derive(Debug, Default, Clone, Copy)]
 enum SelectedOption {
@@ -206,9 +204,6 @@ impl WinMenuScreen {
                 self.new_game();
             }
         }
-    }
-    fn default(&mut self) {
-        self.choice_state = SelectedOption::default()
     }
 }
 

@@ -48,12 +48,10 @@ impl Screen {
     }
 }
 
-pub trait Test: IsScreen + Widget + Debug {}
 #[derive(Debug)]
 pub struct ScreenRouterComponent {
     dispatcher_tx: UnboundedSender<Action>,
     pub current_sceen_kind: Screen,
-    settings: Rc<RefCell<Settings>>,
     // screens
     first_menu: FirstMenuScreen,
     solo_game_menu: SoloGamesMenuScreen,
@@ -106,7 +104,6 @@ impl ScreenRouterComponent {
         );
         ScreenRouterComponent {
             dispatcher_tx,
-            settings,
             current_sceen_kind: STARTING_SCREEN,
             first_menu,
             solo_game_menu,

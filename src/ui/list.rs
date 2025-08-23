@@ -13,7 +13,7 @@ use ratatui::{
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{centered_rect_with_length, screens::Screen};
+use super::{centered_rect_with_length};
 
 #[derive(Debug)]
 struct Entry {
@@ -24,10 +24,8 @@ struct Entry {
 #[derive(Debug)]
 pub struct MenuListComponent {
     dispatcher_tx: UnboundedSender<Action>,
-    is_active: bool,
     list_state: ListState,
     entries: Vec<Entry>,
-    screen: Screen,
     title: String,
 }
 
@@ -37,7 +35,6 @@ impl MenuListComponent {
         dispatcher_tx: UnboundedSender<Action>,
         options: Vec<String>,
         actions: Vec<Action>,
-        screen: Screen,
     ) -> Self {
         assert!(options.len() == actions.len());
         let entries = options
@@ -47,10 +44,8 @@ impl MenuListComponent {
         MenuListComponent {
             title,
             dispatcher_tx,
-            is_active: false,
             list_state: ListState::default().with_selected(Some(0)),
             entries: entries.collect(),
-            screen,
         }
     }
     pub fn get_options(&self) -> Vec<String> {
@@ -126,12 +121,10 @@ impl MutipleEntry {
 #[derive(Debug)]
 pub struct MenuMultipleListComponent {
     dispatcher_tx: UnboundedSender<Action>,
-    is_active: bool,
     list_state_line: ListState,  // verticaly
     list_state_entry: ListState, // horizontaly
     entries: Vec<MutipleEntry>,
     constraints: Vec<Constraint>,
-    screen: Screen,
     title: String,
 }
 
@@ -141,7 +134,6 @@ impl MenuMultipleListComponent {
         dispatcher_tx: UnboundedSender<Action>,
         entries: Vec<MutipleEntry>,
         constraints: Vec<Constraint>,
-        screen: Screen,
     ) -> Self {
         assert!(
             entries
@@ -152,12 +144,10 @@ impl MenuMultipleListComponent {
         MenuMultipleListComponent {
             title,
             dispatcher_tx,
-            is_active: false,
             list_state_line: ListState::default().with_selected(Some(0)),
             list_state_entry: ListState::default().with_selected(Some(0)),
             constraints,
             entries,
-            screen,
         }
     }
     pub fn get_options(&self, line: usize) -> Vec<String> {
@@ -355,46 +345,3 @@ impl<'a> StatefulWidget for &HorizontalList<'a> {
         }
     }
 }
-
-#[derive(Default)]
-pub struct ScrollableList {
-    state: ListState,
-    is_selected: bool,
-    default_state: usize,
-    content: Vec<String>,
-    keep_selected: bool,
-}
-
-impl ScrollableList {
-    pub fn with_default_state(mut self, value: usize) -> Self {
-        self.default_state = value;
-        self
-    }
-
-    pub fn with_content(mut self, content: Vec<String>) -> Self {
-        self.content = content;
-        self
-    }
-    pub fn keep_selected(mut self, keep: bool) -> Self {
-        self.keep_selected = keep;
-        self
-    }
-    pub fn select(&mut self) -> &Self {
-        self.is_selected = true;
-        self
-    }
-    pub fn unselect(&mut self) -> &Self {
-        self.is_selected = false;
-        self
-    }
-
-    pub fn next(&mut self) {
-        if !self.is_selected {}
-    }
-
-    pub fn previous(&mut self) {
-        if !self.is_selected {}
-    }
-}
-
-struct SizedListState {}

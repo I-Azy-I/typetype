@@ -6,7 +6,6 @@ use crate::{action::Action, flux::SendAction, stores::Store, ui::screens::IsScre
 
 use super::super::{super::*, Screen};
 
-const SCREEN: Screen = Screen::SoloGamesMenu;
 
 #[derive(Debug)]
 pub struct SoloGamesMenuScreen {

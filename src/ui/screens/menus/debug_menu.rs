@@ -1,14 +1,13 @@
 use ratatui::{
     text::Span,
-    widgets::{StatefulWidget, Widget},
+    widgets::{Widget},
 };
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, flux::SendAction, stores::Store, ui::screens::IsScreen};
 
-use super::super::{super::*, Screen};
+use super::super::{super::*};
 
-const SCREEN: Screen = Screen::DebugMenu;
 
 #[derive(Debug)]
 pub struct DebugMenuScreen {

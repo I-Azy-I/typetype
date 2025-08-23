@@ -1,4 +1,4 @@
-use ratatui::widgets::{StatefulWidget, Widget};
+use ratatui::widgets::{Widget};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 
 use super::super::{super::*, Screen};
 
-const SCREEN: Screen = Screen::FirstMenu;
+
 
 #[derive(Debug)]
 pub struct FirstMenuScreen {
@@ -34,7 +34,6 @@ impl FirstMenuScreen {
             dispatcher_tx.clone(),
             options,
             actions,
-            SCREEN,
         );
 
         FirstMenuScreen {

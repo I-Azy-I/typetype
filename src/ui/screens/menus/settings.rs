@@ -166,6 +166,7 @@ enum NumberWord {
     #[default]
     W50,
     W100,
+    #[allow(dead_code)]
     Custom(usize), // TODO
 }
 
@@ -234,6 +235,7 @@ enum TimeClock {
     #[default]
     S30,
     S60,
+    #[allow(dead_code)]
     Custom(usize), // TODO
 }
 

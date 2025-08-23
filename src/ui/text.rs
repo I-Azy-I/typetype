@@ -27,8 +27,6 @@ use crate::{
 
 use super::centered_rect_with_length;
 const N_WORD_FOR_WPS: usize = 5;
-const LOREM_LIPSUM: &str =
-    "Lorem ipsum dolor  sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut";
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum CharacterState {
@@ -73,19 +71,20 @@ impl TypeChar {
     fn is_space(&self) -> bool {
         self.char == ' '
     }
-
+    #[allow(dead_code)]
     fn is_typed(&self) -> bool {
         matches!(self.state, CharacterState::Typed)
     }
+    #[allow(dead_code)]
     fn is_incorrect(&self) -> bool {
         matches!(self.state, CharacterState::Incorrect)
     }
-
+    #[allow(dead_code)]
     fn is_not_typed(&self) -> bool {
         matches!(self.state, CharacterState::NotTyped)
             || matches!(self.state, CharacterState::Selected)
     }
-
+    #[allow(dead_code)]
     fn is_cursor(&self) -> bool {
         matches!(self.state, CharacterState::Selected)
     }
@@ -409,7 +408,7 @@ impl TextWidget {
             }
             TextOrigin::Text {
                 start_end_sentence,
-                starting_point,
+                starting_point: _,
             } => {
                 let dir_path = path_texts();
                 let path_source = dir_path.join(filename);
@@ -859,7 +858,7 @@ impl TextWidget {
 
 impl StatefulWidget for &mut TextWidget {
     type State = SettingsText;
-    fn render(self, area: Rect, buf: &mut Buffer, settings: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, _settings: &mut Self::State) { // TODO implement multiple kinds of rendering
         match self.state {
             TextWidgetState::Loading => {
                 let msg = "Loading...";
@@ -928,16 +927,10 @@ impl TextWidgetComponent {
     }
 
     pub fn is_done(&self) -> bool {
-        match self.widget.state {
-            TextWidgetState::Done | TextWidgetState::DoneWithMistakes => true,
-            _ => false,
-        }
+        matches!(self.widget.state, TextWidgetState::Done | TextWidgetState::DoneWithMistakes)
     }
     pub fn is_done_correctly(&self) -> bool {
-        match self.widget.state {
-            TextWidgetState::Done => true,
-            _ => false,
-        }
+        matches!(self.widget.state, TextWidgetState::Done)
     }
 
     fn back_cursor(&mut self) {
@@ -1081,9 +1074,3 @@ impl SendAction for TextWidgetComponent {
     }
 }
 
-async fn bee_script() -> String {
-    get_text("bee_script.txt".to_string()).await.unwrap()
-}
-async fn lotr_script() -> String {
-    get_text("lotr.txt".to_string()).await.unwrap()
-}

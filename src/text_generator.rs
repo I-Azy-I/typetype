@@ -1,15 +1,14 @@
 use std::path::Path;
 
-use crate::config::{path_languages, path_texts};
+
 use log::error;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
-use tokio::fs::{self, File};
+use tokio::fs::{File};
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
 
-#[derive(Debug, Copy, Clone)]
-enum ErrorTextGenerator {}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -127,7 +126,7 @@ fn format_text(input: &str) -> String {
 pub struct TextGenerator {
     word_list: WordList,
     rng: StdRng,
-    seed: u64,
+    _seed: u64,
 }
 impl TextGenerator {
     pub async fn from_language(path_source: impl AsRef<Path>, seed: Option<u64>) -> Option<Self> {
@@ -142,12 +141,10 @@ impl TextGenerator {
         Some(TextGenerator {
             word_list,
             rng,
-            seed,
+            _seed: seed,
         })
     }
-    pub fn seed(&self) -> u64 {
-        self.seed
-    }
+
     pub fn iter<'a>(&'a mut self) -> TextGeneratorIter<'a> {
         TextGeneratorIter {
             word_list: &self.word_list,
@@ -161,57 +158,11 @@ pub struct TextGeneratorIter<'a> {
     word_list: &'a WordList,
     rng: &'a mut StdRng,
 }
-impl<'a> TextGeneratorIter<'a> {
-    pub fn skip_n(mut self, n: usize) -> Self {
-        for _ in 0..n {
-            self.next();
-        }
-        self
-    }
-}
+
 impl<'a> Iterator for TextGeneratorIter<'a> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.word_list.words.choose(&mut self.rng).cloned()
     }
-}
-
-pub async fn fetch_languages_name() -> Vec<String> {
-    list_files_in_folder(path_languages()).await
-}
-
-pub async fn fetch_texts_name() -> Vec<String> {
-    list_files_in_folder(path_texts()).await
-}
-
-async fn list_files_in_folder(path: impl AsRef<Path>) -> Vec<String> {
-    let mut files = Vec::new();
-
-    match fs::read_dir(&path).await {
-        Ok(mut dir) => {
-            while let Some(entry_result) = dir.next_entry().await.unwrap_or_else(|e| {
-                error!("Failed to read directory entry: {e}");
-                None
-            }) {
-                match entry_result.file_type().await {
-                    Ok(file_type) if file_type.is_file() => {
-                        match entry_result.file_name().into_string() {
-                            Ok(name) => files.push(name),
-                            Err(os_str) => error!("Invalid UTF-8 in filename: {:?}", os_str),
-                        }
-                    }
-                    Ok(_) => {} // skip directories or other non-files
-                    Err(e) => error!("Failed to get file type: {e}"),
-                }
-            }
-        }
-        Err(e) => error!(
-            "Failed to open directory '{}': {}",
-            path.as_ref().display(),
-            e
-        ),
-    }
-
-    files
 }

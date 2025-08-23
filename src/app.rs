@@ -11,11 +11,7 @@ use crate::settings::Settings;
 use crate::stores::Store;
 use crate::{action::Action, ui::screens::ScreenRouterComponent};
 
-enum CurrentScreen {
-    Menu,
-    BasicType,
-    Settings,
-}
+
 
 #[derive(Debug)]
 pub struct AppStore {

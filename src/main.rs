@@ -1,6 +1,5 @@
 use std::{cell::RefCell, fs, path::Path, rc::Rc};
 
-use action::Action;
 use dispatcher::Dispatcher;
 mod app;
 use app::App;
@@ -16,7 +15,6 @@ mod user_input;
 mod win_data;
 
 use settings::Settings;
-use tokio::sync::mpsc::UnboundedSender;
 use user_input::UserInput;
 
 use crate::settings::load_settings;
@@ -63,9 +61,4 @@ async fn main() {
     ratatui::restore();
 }
 
-async fn stress_test(dispatcher_tx: UnboundedSender<Action>) {
-    loop {
-        dispatcher_tx.send(Action::KeyPressed(' ')).unwrap();
-        tokio::task::yield_now().await;
-    }
-}
+

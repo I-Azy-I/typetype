@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     text::Span,
     widgets::{Block, BorderType, Borders, LineGauge, StatefulWidget, Widget},
 };
@@ -26,7 +26,6 @@ use crate::{
 
 use super::super::{super::*, Screen};
 
-const SCREEN: Screen = Screen::SoloRaceGame;
 
 #[derive(Debug, Clone, Copy, Default)]
 enum GameModParam {
@@ -94,7 +93,8 @@ impl SoloGameScreen {
             )
         };
 
-        let seed = if !keep_seed || seed.is_none() {
+        let is_seed = seed.is_none(); // make clippy happy
+        let seed = if !keep_seed || is_seed {
             let mut rng = rand::rng();
             let new_seed: u64 = rng.random();
             self.shr_settings.borrow_mut().game_settings.seed = Some(new_seed);
@@ -105,7 +105,7 @@ impl SoloGameScreen {
 
         let offset = match text_origin {
             TextOrigin::Text {
-                start_end_sentence,
+                start_end_sentence: _,
                 starting_point,
             } => match starting_point {
                 StartingPointSentence::Beginning => Some(0.0),
@@ -144,7 +144,7 @@ impl SoloGameScreen {
 
     fn process_end(&mut self) {
         let game_result = match self.game_mod_params {
-            GameModParam::Race { n_words } => GameModEndResult::Race(RaceData {
+            GameModParam::Race { n_words: _ } => GameModEndResult::Race(RaceData {
                 skip: !self.done,
                 time: Instant::now() - self.start_time.unwrap_or(Instant::now()),
                 n_words: self
@@ -153,7 +153,7 @@ impl SoloGameScreen {
                     .map(|text| text.get_n_words_correctly_typed())
                     .unwrap_or(0),
             }),
-            GameModParam::Clock { time } => GameModEndResult::Clock(ClockData {
+            GameModParam::Clock { time: _ } => GameModEndResult::Clock(ClockData {
                 skip: !self.done,
                 time: self
                     .start_time

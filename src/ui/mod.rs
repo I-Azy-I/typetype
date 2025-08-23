@@ -4,7 +4,6 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List},
 };
 pub mod clock;
-pub mod gauge;
 pub mod list;
 pub mod screens;
 mod setting_screen;
