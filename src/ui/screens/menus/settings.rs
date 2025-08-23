@@ -11,9 +11,15 @@ use ratatui::{
 use tokio::{fs, sync::mpsc::UnboundedSender};
 
 use crate::{
-    action::Action, config::{default_language, default_text, path_languages, path_texts}, flux::SendAction, settings::{save_settings, Settings, StartEndSentence, StartingPointSentence, TextOrigin}, stores::Store, ui::{
-        apply_block_style, apply_list_style, centered_rect_with_length, list::HorizontalList, list_hightlight_style, over_block_style, screens::IsScreen, select_block_style
-    }
+    action::Action,
+    config::{default_language, default_text, path_languages, path_texts},
+    flux::SendAction,
+    settings::{Settings, StartEndSentence, StartingPointSentence, TextOrigin, save_settings},
+    stores::Store,
+    ui::{
+        apply_block_style, apply_list_style, centered_rect_with_length, list::HorizontalList,
+        list_hightlight_style, over_block_style, screens::IsScreen, select_block_style,
+    },
 };
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -706,9 +712,9 @@ impl Widget for &mut TextSettingScreen {
         let layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![
-                Constraint::Ratio(1,3),
-                Constraint::Ratio(1,3),
-                Constraint::Ratio(1,3),
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
             ])
             .split(area);
         // render generator and source settings

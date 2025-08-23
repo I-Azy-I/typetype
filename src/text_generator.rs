@@ -206,7 +206,11 @@ async fn list_files_in_folder(path: impl AsRef<Path>) -> Vec<String> {
                 }
             }
         }
-        Err(e) => error!("Failed to open directory '{}': {}", path.as_ref().display(), e),
+        Err(e) => error!(
+            "Failed to open directory '{}': {}",
+            path.as_ref().display(),
+            e
+        ),
     }
 
     files

@@ -18,7 +18,7 @@ use crate::{
     stores::Store,
     ui::{
         clock::ClockWidget,
-        screens::{games::GameMod, IsScreen},
+        screens::{IsScreen, games::GameMod},
         text::{SettingsText, TextWidgetComponent},
     },
     win_data::{ClockData, GameModEndResult, InfiniteData, RaceData, WinData},
@@ -166,18 +166,14 @@ impl SoloGameScreen {
                     .unwrap()
                     .get_n_words_correctly_typed(),
             }),
-            GameModParam::Infinite => {
-                GameModEndResult::Infinite(
-                    InfiniteData{
-                        time: Instant::now() - self.start_time.unwrap_or(Instant::now()),
-                        n_words: self
-                            .text_component
-                            .as_ref()
-                            .unwrap()
-                            .get_n_words_correctly_typed(),
-                    }
-                )
-            },
+            GameModParam::Infinite => GameModEndResult::Infinite(InfiniteData {
+                time: Instant::now() - self.start_time.unwrap_or(Instant::now()),
+                n_words: self
+                    .text_component
+                    .as_ref()
+                    .unwrap()
+                    .get_n_words_correctly_typed(),
+            }),
         };
         // edit data for end screen
 

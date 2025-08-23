@@ -17,7 +17,12 @@ use ratatui::{
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    action::Action, config::{path_languages, path_texts}, flux::SendAction, settings::{StartEndSentence, TextOrigin}, stores::Store, text_generator::{get_text, TextGenerator}
+    action::Action,
+    config::{path_languages, path_texts},
+    flux::SendAction,
+    settings::{StartEndSentence, TextOrigin},
+    stores::Store,
+    text_generator::{TextGenerator, get_text},
 };
 
 use super::centered_rect_with_length;

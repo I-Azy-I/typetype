@@ -30,24 +30,23 @@ async fn main() {
     }
     #[cfg(debug_assertions)]
     {
-        use crate::config::{path_settings, path_general_config};
+        use crate::config::{path_general_config, path_settings};
 
         if !path_settings().exists() {
             let settings_toml_string =
-            toml::to_string(&Settings::default()).expect("To serialize settings to TOML");
+                toml::to_string(&Settings::default()).expect("To serialize settings to TOML");
             fs::write(path_settings(), settings_toml_string)
                 .expect("To write default settings to file");
         }
-        
+
         if !Path::new(path_general_config()).exists() {
             use crate::config::GeneralConfig;
 
             let config_toml_string =
-            toml::to_string(&GeneralConfig::default()).expect("To serialize config to TOML");
+                toml::to_string(&GeneralConfig::default()).expect("To serialize config to TOML");
             fs::write(path_general_config(), config_toml_string)
                 .expect("To write default settings to file");
         }
-
     }
 
     let settings: Rc<RefCell<Settings>> = Rc::new(RefCell::new(load_settings()));

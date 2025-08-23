@@ -86,7 +86,7 @@ impl WinMenuScreen {
             let line = Span::raw(text).into_centered_line();
             line.render(centered_area, buf);
         } else {
-        let centered_area = centered_rect_with_length(area.width, 2, area);
+            let centered_area = centered_rect_with_length(area.width, 2, area);
 
             let time = race_data.time;
             let average_wpm = (race_data.n_words as f32) * 60.0 / race_data.time.as_secs_f32();
@@ -117,7 +117,7 @@ impl WinMenuScreen {
             line.render(centered_area, buf);
         } else {
             let centered_area = centered_rect_with_length(area.width, 2, area);
-            
+
             let time = clock_data.time;
             let n_words = clock_data.n_words;
             let average_wpm = (n_words as f32) * 60.0 / time as f32;
@@ -142,28 +142,38 @@ impl WinMenuScreen {
         area: Rect,
         buf: &mut ratatui::prelude::Buffer,
     ) {
-        debug!("Rendering infinite win screen with data: {:?}", infinite_data);
+        debug!(
+            "Rendering infinite win screen with data: {:?}",
+            infinite_data
+        );
         debug!("Height of area: {}", area.height);
         let centered_area = centered_rect_with_length(area.width, 3, area);
-        
+
         let time = infinite_data.time;
         let n_words_typed = infinite_data.n_words;
         let average_wpm = (n_words_typed as f32) * 60.0 / time.as_secs_f32();
 
         let text_time =
             Span::raw(format!("time: {:.2} seconds", time.as_secs_f32())).into_centered_line();
-        let text_n_words = Span::raw(format!("number of correctly typed words: {:}", n_words_typed)).into_centered_line();
+        let text_n_words = Span::raw(format!(
+            "number of correctly typed words: {:}",
+            n_words_typed
+        ))
+        .into_centered_line();
         let text_average_wpm =
             Span::raw(format!("average wpm: {:.0}", average_wpm)).into_centered_line();
 
         let v_data_layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Length(1), Constraint::Length(1), Constraint::Length(1) ])
+            .constraints(vec![
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
             .split(centered_area);
         text_time.render(v_data_layout[0], buf);
         text_n_words.render(v_data_layout[1], buf);
         text_average_wpm.render(v_data_layout[2], buf);
-        
     }
 
     fn new_game(&self) {
@@ -238,7 +248,9 @@ impl Widget for &WinMenuScreen {
             crate::win_data::GameModEndResult::None => {
                 unreachable!("WinData has neverbeen initialized")
             }
-            crate::win_data::GameModEndResult::Infinite(infinite_data) => self.win_screen_infinite(infinite_data, inner_area_block, buf) ,
+            crate::win_data::GameModEndResult::Infinite(infinite_data) => {
+                self.win_screen_infinite(infinite_data, inner_area_block, buf)
+            }
             crate::win_data::GameModEndResult::Race(race_data) => {
                 self.win_screen_race(race_data, inner_area_block, buf)
             }

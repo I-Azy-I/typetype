@@ -7,7 +7,7 @@ use ratatui::text;
 use serde::{Deserialize, Serialize};
 use tokio;
 
-use crate::config::{default_language, default_text, path_settings, path_languages, path_texts};
+use crate::config::{default_language, default_text, path_languages, path_settings, path_texts};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct Settings {
@@ -118,7 +118,9 @@ pub fn save_settings(settings: Settings) {
     tokio::spawn(async move {
         let settings_toml_string =
             toml::to_string(&settings).expect("To serialize settings to TOML");
-        tokio::fs::write( path_settings(), settings_toml_string).await.expect("To write settings to file");
+        tokio::fs::write(path_settings(), settings_toml_string)
+            .await
+            .expect("To write settings to file");
     });
 }
 

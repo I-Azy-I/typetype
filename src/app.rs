@@ -6,7 +6,6 @@ use std::{io, time::Duration};
 use ratatui::{Frame, buffer::Buffer, layout::Rect, widgets::Widget};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-
 use crate::config::miliseconds_per_frame;
 use crate::settings::Settings;
 use crate::stores::Store;
