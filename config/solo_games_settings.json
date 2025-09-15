@@ -1,0 +1,17 @@
+{
+  "game_settings": {
+    "keep_seed": false,
+    "seed": 13515697014631431468,
+    "clock_game_settings": {
+      "time": 30
+    },
+    "race_game_settings": {
+      "number_words": 10
+    },
+    "infinite_game_settings": {},
+    "text_settings": {
+      "text_origin": "Language",
+      "filename": "english_1k.json"
+    }
+  }
+}

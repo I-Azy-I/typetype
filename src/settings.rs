@@ -27,6 +27,7 @@ pub struct TextSettings {
     pub text_origin: TextOrigin,
     pub filename: Option<String>,
 }
+
 impl TextSettings {
     fn try_get_filename(path_files: PathBuf, default_filename: String) -> Option<String> {
         if path_files.join(&default_filename).exists() {
@@ -43,6 +44,7 @@ impl TextSettings {
         }
     }
 }
+
 impl Default for TextSettings {
     fn default() -> Self {
         let text_origin = TextOrigin::default();
@@ -103,6 +105,7 @@ pub enum StartingPointSentence {
     Beginning,
     Random,
 }
+
 #[derive(Serialize, Default, Deserialize, Debug, Clone)]
 pub enum OffsetText {
     Beginning,
@@ -112,9 +115,9 @@ pub enum OffsetText {
 
 pub fn save_settings(settings: Settings) {
     tokio::spawn(async move {
-        let settings_toml_string =
-            toml::to_string(&settings).expect("To serialize settings to TOML");
-        tokio::fs::write(path_settings(), settings_toml_string)
+        let settings_json_string =
+            serde_json::to_string_pretty(&settings).expect("To serialize settings to TOML");
+        tokio::fs::write(path_settings(), settings_json_string)
             .await
             .expect("To write settings to file");
     });
@@ -122,9 +125,9 @@ pub fn save_settings(settings: Settings) {
 
 pub fn load_settings() -> Settings {
     if path_settings().exists() {
-        let settings_toml_string =
+        let settings_json_string =
             fs::read_to_string(path_settings()).expect("To read settings from file");
-        toml::from_str(&settings_toml_string).expect("To deserialize settings from TOML")
+        serde_json::from_str(&settings_json_string).expect("To deserialize settings from json")
     } else {
         Settings::default()
     }

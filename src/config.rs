@@ -22,7 +22,7 @@ const _MILISECONDS_PER_FRAME: u64 = 20;
 
 static GENERAL_CONFIG: Lazy<GeneralConfig> = Lazy::new(|| {
     // Example: read config file
-    let path = Path::new(PATH_GENERAL_CONFIG);
+    let path = Path::new(path_general_config());
     if path.exists() {
         let general_config = fs::read_to_string(path).expect("To read general config from file");
         toml::from_str(&general_config).expect("To deserialize config from TOML")

@@ -119,6 +119,7 @@ impl StartEndSentenceState {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
+
 enum StartingPointState {
     #[default]
     Beginning,

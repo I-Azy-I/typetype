@@ -22,9 +22,7 @@ impl UserInput {
             let crossterm_event = reader.next().fuse();
             pin_mut!(crossterm_event);
             if let Some(Ok(CrosstermEvent::Key(key_event))) = crossterm_event.await {
-                
                     self.handle_key_event(key_event)
-                
             }
         }
     }
