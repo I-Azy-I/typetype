@@ -1,5 +1,5 @@
 # Typetype
-Typetype is a typing test that runs directly in your terminal, built with (Ratatui)[https://ratatui.rs/].
+Typetype is a typing test that runs directly in your terminal, built with [Ratatui](https://ratatui.rs/)🐁.
 No need to waste time opening your browser anymore. Just do it from your terminal.
 ![screenshot of a race game](screenshots/race.png)
 ## How to use it
@@ -15,7 +15,7 @@ cargo run --release
 Typetype can handle to source for your typing session:
 - *Languages*, it will use random word from a set
 - *Texts*, it will let you directly type a given text. You can try the given ones (definitely not generate by AI).
-> languages are modifed one from (monkeytype)[https://github.com/monkeytypegame/monkeytype]
+> languages are modifed ones from [monkeytype](https://github.com/monkeytypegame/monkeytype)
 
 
 ### Multiplayer
