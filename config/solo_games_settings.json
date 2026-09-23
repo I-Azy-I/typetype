@@ -1,17 +1,22 @@
 {
   "game_settings": {
     "keep_seed": false,
-    "seed": 13515697014631431468,
+    "seed": 15152860598637671242,
     "clock_game_settings": {
       "time": 30
     },
     "race_game_settings": {
-      "number_words": 10
+      "number_words": 100
     },
     "infinite_game_settings": {},
     "text_settings": {
-      "text_origin": "Language",
-      "filename": "english_1k.json"
+      "text_origin": {
+        "Text": {
+          "start_end_sentence": "Start",
+          "starting_point": "Random"
+        }
+      },
+      "filename": "monkey.txt"
     }
   }
 }

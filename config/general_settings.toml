@@ -1,7 +1,7 @@
 path_languages = "languages"
 path_texts = "texts"
 default_language = "english_1k.json"
-default_text = "lotr.txt"
+default_text = "monkey.txt"
 path_dir_setting = "config"
 setting_solo_games_filename = "solo_games_settings.json"
 miliseconds_per_frame = 20
